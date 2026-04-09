@@ -66,6 +66,16 @@
     .mode-manuel  { background: #ccfbf1; color: #134e4a; border: 1px solid #99f6e4; }
     .mode-berber  { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
     .mode-oto { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .mode-luna { background: #fce7f3; color: #9d174d; border: 1px solid #f9a8d4; }
+
+    .luna-cfg-wrap {
+      display: none; align-items: center; gap: 10px;
+      background: #fdf2f8; border: 1px solid #f9a8d4;
+      border-radius: 8px; padding: 6px 12px;
+    }
+    .luna-cfg-wrap.visible { display: flex; }
+    .luna-cfg-wrap label { font-size: 0.82rem; font-weight: 600; color: #9d174d; }
+    .luna-cfg-wrap select { padding: 4px 8px; font-size: 0.82rem; }
 
     .oto-st-wrap {
       display: none; align-items: center; gap: 10px;
@@ -454,6 +464,7 @@
     <option value="manuel">Manuel Mod — Tabloyu Kendin Doldur</option>
     <option value="berber">Berber Sorusu (Kapasiteli Kuyruk)</option>
     <option value="otoYikama">Oto Yıkama / Berber (Çift Sunucu)</option>
+    <option value="lunapark">Luna Park — Çarpışan Arabalar</option>
   </select>
 
   <label>Müşteri sayısı:</label>
@@ -497,6 +508,21 @@
       <option value="2" selected>2</option>
       <option value="3">3</option>
       <option value="4">4</option>
+    </select>
+  </div>
+  <div class="luna-cfg-wrap" id="lunaCfgWrap">
+    <label>&#127922; Tur süresi:</label>
+    <select id="lunaDur" onchange="newSim()">
+      <option value="3">3 dk</option>
+      <option value="4">4 dk</option>
+      <option value="5" selected>5 dk</option>
+      <option value="6">6 dk</option>
+    </select>
+    <label>Max bekleme:</label>
+    <select id="lunaWait" onchange="newSim()">
+      <option value="1">1 dk</option>
+      <option value="2" selected>2 dk</option>
+      <option value="3">3 dk</option>
     </select>
   </div>
 </div>
@@ -828,6 +854,55 @@
         <p style="margin-top:8px">Son nokta mutlaka <strong>1.0</strong>'a ulaşır.</p>
       `
     },
+    lpGelis: {
+      title: 'Geliş Zamanı',
+      body: `
+        <p>Çocuğun luna parka geldiği zamandır.</p>
+        <div class="formula">Geliş₁ = 0 (ilk çocuk t=0'da gelir)<br>Gelişᵢ = Gelişᵢ₋₁ + IATᵢ</div>
+        <div class="example">IAT₂ = 3 → Geliş₂ = 0 + 3 = 3</div>
+      `
+    },
+    lpStart: {
+      title: 'Oyun Başlangıcı',
+      body: `
+        <p>Çocuğun araca binip oyunun başladığı zamandır.</p>
+        <p><strong>3 durum:</strong></p>
+        <p>1. Araba boş + hemen 2 kişi var → ikinci kişinin gelişinde başlar<br>
+           2. Araba boş + tek kişi, 2 dk içinde ikinci gelir → ikinci kişinin gelişinde başlar<br>
+           3. Araba boş + tek kişi, 2 dk geçer → tek kişi gelişi + 2 dk'da başlar<br>
+           4. Araba dolu, kuyruktaysa → araba boşaldığında (sıra geldikçe)</p>
+        <div class="example">Çocuk t=5'te geldi, araba t=7'de boşaldı → Oyun Başlangıcı = 7</div>
+      `
+    },
+    lpType: {
+      title: 'Binme Tipi — Tek Başına / Beraber',
+      body: `
+        <p>Çocuğun araçta yalnız mı yoksa bir arkadaşıyla mı bindiğini gösterir.</p>
+        <div class="formula">Beraber: Oyun başladığında 2 çocuk vardı<br>Tek Başına: 2 dakika beklenildi, kimse gelmedi</div>
+        <p><strong>Karar kuralı:</strong><br>
+        • Oyun başında sırada 2+ kişi var → <strong>Beraber</strong><br>
+        • Sadece 1 kişi var → 2 dk bekle → partner geldi → <strong>Beraber</strong><br>
+        • Sadece 1 kişi var → 2 dk beklendi → kimse gelmedi → <strong>Tek Başına</strong></p>
+      `
+    },
+    lpBekleme: {
+      title: 'Bekleme Süresi',
+      body: `
+        <p>Çocuğun sıraya girdiği andan oyunun başlamasına kadar geçen süredir.</p>
+        <div class="formula">Bekleme = Oyun Başlangıcı − Geliş Zamanı</div>
+        <div class="example">Geliş = 5, Oyun Başlangıcı = 8 → Bekleme = 3 dk</div>
+        <p>Bekleme = 0: Çocuk gelir gelmez oyun başladı.</p>
+      `
+    },
+    lpBoz: {
+      title: 'Boş Zaman — Oyun Alanı Tamamen Boş',
+      body: `
+        <p>Hem arabanın boş olduğu hem de hiç kimsenin beklemediği süredir.</p>
+        <div class="formula">Boş Zaman = İlk çocuğun gelişi − Önceki oyunun bitişi<br>(Sadece o sürede hiç kimse yoksa)</div>
+        <p>Dikkat: Bir çocuk gelip partner bekliyorsa, o süre <strong>boş sayılmaz</strong> (biri var).</p>
+        <div class="example">Oyun t=7'de bitti, queue boş, sonraki çocuk t=10'da geldi<br>→ Boş Zaman = 10 − 7 = 3 dk</div>
+      `
+    },
     rnRangeEnd: {
       title: 'RN Bitiş Değeri Nasıl Bulunur?',
       body: `
@@ -1009,6 +1084,102 @@
       const bridged  = rows.slice(0, i).some(r => r.ss != null && r.ss >= bothFrom && r.ss < t);
       if (!bridged && t > bothFrom) row.bozZaman = t - bothFrom;
     });
+
+    return rows;
+  }
+
+  /* ════════════════════════════════
+     GENERATE LUNA PARK SIMULATION
+  ════════════════════════════════ */
+  function generateLunaPark(n, rideDuration, maxWait) {
+    const iatVals = [null];
+    for (let i = 1; i < n; i++) iatVals.push(randInt(1, 5));
+    const arrivals = [0];
+    for (let i = 1; i < n; i++) arrivals.push(arrivals[i-1] + iatVals[i]);
+
+    const rows = arrivals.map((arr, i) => ({
+      iat: iatVals[i], arrival: arr,
+      rideStart: null, rideEnd: null, rideType: null,
+      waitTime: null, bozZaman: 0
+    }));
+
+    const sortFn = (a, b) => {
+      if (a.t !== b.t) return a.t - b.t;
+      const p = { arrive: 0, soloExpire: 1, rideEnd: 2 };
+      return (p[a.type] || 0) - (p[b.type] || 0);
+    };
+
+    const events = rows.map((r, i) => ({ t: r.arrival, type: 'arrive', ci: i }));
+    events.sort(sortFn);
+
+    let rideFreeAt = 0;
+    let rideId = 0;
+    let idleStart = 0;
+    let waitingSolo = null;
+    const queue = [];
+
+    function startRide(children, startTime, bozForFirst) {
+      rideFreeAt = startTime + rideDuration;
+      rideId++;
+      const myRideId = rideId;
+      const type = children.length === 2 ? 'Beraber' : 'Tek Başına';
+      children.forEach((ci, idx) => {
+        rows[ci].rideStart = startTime;
+        rows[ci].rideEnd   = rideFreeAt;
+        rows[ci].rideType  = type;
+        rows[ci].waitTime  = startTime - rows[ci].arrival;
+        rows[ci].bozZaman  = idx === 0 ? bozForFirst : 0;
+      });
+      idleStart = null;
+      events.push({ t: rideFreeAt, type: 'rideEnd', rideId: myRideId });
+      events.sort(sortFn);
+    }
+
+    let ei = 0;
+    while (ei < events.length) {
+      const ev = events[ei++];
+      const t = ev.t;
+
+      if (ev.type === 'arrive') {
+        const ci = ev.ci;
+        if (waitingSolo !== null) {
+          const partner = waitingSolo.ci;
+          const boz = waitingSolo.bozForFirst;
+          waitingSolo = null;
+          startRide([partner, ci], Math.max(t, rideFreeAt), boz);
+        } else if (rideFreeAt <= t) {
+          const boz = idleStart !== null ? t - idleStart : 0;
+          idleStart = null;
+          waitingSolo = { ci, bozForFirst: boz };
+          events.push({ t: t + maxWait, type: 'soloExpire', ci });
+          events.sort(sortFn);
+        } else {
+          queue.push(ci);
+        }
+
+      } else if (ev.type === 'soloExpire') {
+        if (waitingSolo !== null && waitingSolo.ci === ev.ci) {
+          const boz = waitingSolo.bozForFirst;
+          const ci = waitingSolo.ci;
+          waitingSolo = null;
+          startRide([ci], t, boz);
+        }
+
+      } else if (ev.type === 'rideEnd') {
+        if (ev.rideId === rideId) {
+          if (queue.length >= 2) {
+            startRide(queue.splice(0, 2), t, 0);
+          } else if (queue.length === 1) {
+            const ci = queue.shift();
+            waitingSolo = { ci, bozForFirst: 0 };
+            events.push({ t: t + maxWait, type: 'soloExpire', ci });
+            events.sort(sortFn);
+          } else {
+            idleStart = t;
+          }
+        }
+      }
+    }
 
     return rows;
   }
@@ -1403,6 +1574,44 @@
     });
   }
 
+  /* ════════════════════════════════
+     BUILD LUNA PARK TABLE
+  ════════════════════════════════ */
+  function buildLunaParkTable() {
+    document.getElementById('simHead').innerHTML = `
+      <th><div class="th-inner">Çocuk No.</div></th>
+      <th><div class="th-inner">IAT</div></th>
+      <th><div class="th-inner">Geliş Zamanı <button class="help-btn" onclick="showModal('lpGelis')">?</button></div></th>
+      <th><div class="th-inner">Oyun Başlangıcı <button class="help-btn" onclick="showModal('lpStart')">?</button></div></th>
+      <th><div class="th-inner">Oyun Bitişi <button class="help-btn" onclick="showModal('departure')">?</button></div></th>
+      <th><div class="th-inner">Binme Tipi <button class="help-btn" onclick="showModal('lpType')">?</button></div></th>
+      <th><div class="th-inner">Bekleme Süresi <button class="help-btn" onclick="showModal('lpBekleme')">?</button></div></th>
+      <th><div class="th-inner">Boş Zaman <button class="help-btn" onclick="showModal('lpBoz')">?</button></div></th>
+    `;
+    const tbody = document.getElementById('simBody');
+    tbody.innerHTML = '';
+    simData.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="pkt-no">${i + 1}</td>
+        <td class="given">${row.iat === null ? '—' : row.iat}</td>
+        <td><input type="number" min="0" id="lpArr_${i}"   placeholder="—" /></td>
+        <td><input type="number" min="0" id="lpStart_${i}" placeholder="—" /></td>
+        <td><input type="number" min="0" id="lpEnd_${i}"   placeholder="—" /></td>
+        <td>
+          <select class="durum-select" id="lpType_${i}">
+            <option value="">—</option>
+            <option value="Tek Başına">Tek Başına</option>
+            <option value="Beraber">Beraber</option>
+          </select>
+        </td>
+        <td><input type="number" min="0" id="lpWait_${i}" placeholder="—" /></td>
+        <td><input type="number" min="0" id="lpBoz_${i}"  placeholder="—" /></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
   function onHVChange(i) {
     const val = document.getElementById(`oSrv_${i}`).value;
     const disable = (ids) => ids.forEach(id => {
@@ -1470,6 +1679,7 @@
     const isDecimal   = currentMode === 'sinav-decimal';
     const berberCapWrap = document.getElementById('berberCapWrap');
     const otoStWrap = document.getElementById('otoStWrap');
+    const lunaCfgWrap = document.getElementById('lunaCfgWrap');
 
     sinavPanel.classList.remove('visible');
     manuelPanel.classList.remove('visible');
@@ -1483,6 +1693,7 @@
       toggleWrap.style.display = 'none';
       berberCapWrap.classList.remove('visible');
       otoStWrap.classList.remove('visible');
+      lunaCfgWrap.classList.remove('visible');
 
     } else if (currentMode === 'sinav') {
       badge.textContent = isTF() ? 'SINAV — ONDALIK RN' : 'SINAV — TAM SAYI RN';
@@ -1494,6 +1705,7 @@
       toggleWrap.style.display = 'flex';
       berberCapWrap.classList.remove('visible');
       otoStWrap.classList.remove('visible');
+      lunaCfgWrap.classList.remove('visible');
 
     } else if (currentMode === 'sinav-decimal') {
       badge.textContent = 'SINAV — ONDALIK RN';
@@ -1504,6 +1716,7 @@
       toggleWrap.style.display = 'none';
       berberCapWrap.classList.remove('visible');
       otoStWrap.classList.remove('visible');
+      lunaCfgWrap.classList.remove('visible');
 
     } else if (currentMode === 'manuel') {
       badge.textContent = 'MANUEL MOD';
@@ -1512,6 +1725,7 @@
       toggleWrap.style.display = 'flex';
       berberCapWrap.classList.remove('visible');
       otoStWrap.classList.remove('visible');
+      lunaCfgWrap.classList.remove('visible');
 
     } else if (currentMode === 'berber') {
       badge.textContent = 'BERBER SORUSU';
@@ -1519,6 +1733,7 @@
       toggleWrap.style.display = 'none';
       berberCapWrap.classList.add('visible');
       otoStWrap.classList.remove('visible');
+      lunaCfgWrap.classList.remove('visible');
 
     } else if (currentMode === 'otoYikama') {
       badge.textContent = 'OTO YIKAMA — ÇİFT SUNUCU';
@@ -1526,11 +1741,25 @@
       toggleWrap.style.display = 'none';
       berberCapWrap.classList.remove('visible');
       otoStWrap.classList.add('visible');
+      lunaCfgWrap.classList.remove('visible');
+
+    } else if (currentMode === 'lunapark') {
+      badge.textContent = 'LUNA PARK — ÇARPIŞAN ARABALAR';
+      badge.className = 'mode-badge mode-luna';
+      toggleWrap.style.display = 'none';
+      berberCapWrap.classList.remove('visible');
+      otoStWrap.classList.remove('visible');
+      lunaCfgWrap.classList.add('visible');
     }
 
     const dec = isDecimal || isTF(); // effective decimal flag
 
-    if (currentMode === 'otoYikama') {
+    if (currentMode === 'lunapark') {
+      const dur   = parseInt(document.getElementById('lunaDur').value)  || 5;
+      const mwait = parseInt(document.getElementById('lunaWait').value) || 2;
+      simData = generateLunaPark(n, dur, mwait);
+      buildLunaParkTable();
+    } else if (currentMode === 'otoYikama') {
       const ustaST  = parseInt(document.getElementById('ustaST').value)  || 3;
       const cirakST = parseInt(document.getElementById('cirakST').value) || 2;
       simData = generateOtoYikama(n, ustaST, cirakST);
@@ -1602,6 +1831,33 @@
   function checkAnswers() {
     if (!simData.length) return;
     let total = 0, correct = 0;
+
+    if (currentMode === 'lunapark') {
+      simData.forEach((row, i) => {
+        let r;
+        r = checkCell(`lpArr_${i}`,   row.arrival);   total += r.t; correct += r.c;
+        r = checkCell(`lpStart_${i}`, row.rideStart); total += r.t; correct += r.c;
+        r = checkCell(`lpEnd_${i}`,   row.rideEnd);   total += r.t; correct += r.c;
+        const typeEl = document.getElementById(`lpType_${i}`);
+        total++;
+        if (!typeEl.value) {
+          typeEl.className = 'durum-select empty-err'; typeEl.title = `Boş. Doğru: ${row.rideType}`;
+        } else if (typeEl.value === row.rideType) {
+          typeEl.className = 'durum-select correct'; typeEl.title = 'Doğru!'; correct++;
+        } else {
+          typeEl.className = 'durum-select incorrect'; typeEl.title = `Yanlış! Doğru: ${row.rideType}`;
+        }
+        r = checkCell(`lpWait_${i}`, row.waitTime);  total += r.t; correct += r.c;
+        r = checkCell(`lpBoz_${i}`,  row.bozZaman);  total += r.t; correct += r.c;
+      });
+      const pct = Math.round((correct / total) * 100);
+      document.getElementById('scoreText').textContent = `${correct} / ${total} doğru  (${pct}%)`;
+      document.getElementById('barFill').style.width = pct + '%';
+      document.getElementById('barFill').style.background = pct >= 80 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
+      document.getElementById('scoreBar').classList.add('visible');
+      showStats();
+      return;
+    }
 
     if (currentMode === 'otoYikama') {
       simData.forEach((row, i) => {
@@ -1725,6 +1981,24 @@
   function showSolution() {
     if (!simData.length) return;
 
+    if (currentMode === 'lunapark') {
+      simData.forEach((row, i) => {
+        setInput(`lpArr_${i}`,   row.arrival);
+        setInput(`lpStart_${i}`, row.rideStart);
+        setInput(`lpEnd_${i}`,   row.rideEnd);
+        const typeEl = document.getElementById(`lpType_${i}`);
+        if (typeEl) { typeEl.value = row.rideType; typeEl.className = 'durum-select correct'; typeEl.title = ''; }
+        setInput(`lpWait_${i}`, row.waitTime);
+        setInput(`lpBoz_${i}`,  row.bozZaman);
+        [`lpArr_${i}`,`lpStart_${i}`,`lpEnd_${i}`,`lpWait_${i}`,`lpBoz_${i}`].forEach(id => {
+          const e = document.getElementById(id); if (e) { e.className = 'correct'; e.title = ''; }
+        });
+      });
+      document.getElementById('scoreBar').classList.remove('visible');
+      showStats();
+      return;
+    }
+
     if (currentMode === 'otoYikama') {
       simData.forEach((row, i) => {
         setInput(`oArr_${i}`, row.arrival);
@@ -1824,6 +2098,12 @@
      CLEAR
   ════════════════════════════════ */
   function clearAnswers() {
+    if (currentMode === 'lunapark') {
+      simData.forEach((row, i) => {
+        const typeEl = document.getElementById(`lpType_${i}`);
+        if (typeEl) { typeEl.value = ''; typeEl.className = 'durum-select'; typeEl.title = ''; }
+      });
+    }
     if (currentMode === 'otoYikama') {
       simData.forEach((row, i) => {
         const srvEl = document.getElementById(`oSrv_${i}`);
@@ -1862,6 +2142,23 @@
   ════════════════════════════════ */
   function showStats() {
     if (!simData.length) return;
+
+    if (currentMode === 'lunapark') {
+      const tek    = simData.filter(r => r.rideType === 'Tek Başına').length;
+      const beraber = simData.filter(r => r.rideType === 'Beraber').length;
+      const totalBoz = simData.reduce((s, r) => s + r.bozZaman, 0);
+      const maxBekl  = Math.max(...simData.map(r => r.waitTime || 0));
+      const avgBekl  = (simData.reduce((s, r) => s + (r.waitTime || 0), 0) / simData.length).toFixed(2);
+      document.getElementById('statsGrid').innerHTML = `
+        <div class="stat-card"><div class="val" style="color:#9d174d">${tek}</div><div class="lbl">Tek Başına Binen Çocuk</div></div>
+        <div class="stat-card"><div class="val" style="color:#1e40af">${beraber}</div><div class="lbl">Beraber Binen Çocuk</div></div>
+        <div class="stat-card"><div class="val">${avgBekl} dk</div><div class="lbl">Ort. Bekleme Süresi</div></div>
+        <div class="stat-card" style="border-color:#fde68a"><div class="val" style="color:#d97706">${maxBekl} dk</div><div class="lbl">En Uzun Bekleme</div></div>
+        <div class="stat-card" style="border-color:#fde68a"><div class="val" style="color:#d97706">${totalBoz} dk</div><div class="lbl">Toplam Boş Zaman</div></div>
+      `;
+      document.getElementById('statsPanel').classList.add('visible');
+      return;
+    }
 
     if (currentMode === 'otoYikama') {
       const ustaCusts  = simData.filter(r => r.server === 'Usta');
