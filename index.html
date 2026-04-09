@@ -335,6 +335,48 @@
       font-size: 0.85rem; color: #166534; margin-top: 10px;
     }
 
+    /* ── CHART SECTION ── */
+    .chart-section {
+      margin-top: 20px;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 16px;
+    }
+    .chart-section-header {
+      display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+    }
+    .chart-section-header h4 {
+      font-size: 0.88rem; font-weight: 700; color: #1e293b; margin: 0;
+    }
+    .chart-legend {
+      font-size: 0.75rem; color: #64748b; margin-left: auto;
+    }
+    .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+    @media (max-width: 900px) { .chart-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 500px) { .chart-grid { grid-template-columns: 1fr; } }
+
+    .chart-block {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+    }
+    .chart-block canvas { max-width: 100%; display: block; margin: 0 auto; }
+
+    .chart-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 99px;
+      font-size: 0.72rem; font-weight: 700; cursor: pointer; border: none;
+      transition: opacity 0.15s;
+    }
+    .chart-badge:hover { opacity: 0.8; }
+    .badge-pdf { background: #dbeafe; color: #1e40af; }
+    .badge-cdf { background: #dcfce7; color: #166534; }
+
     @media (max-width: 640px) {
       .controls, .table-wrapper, .action-row,
       .stats-panel, .score-bar, .sinav-panel, .manuel-panel { padding-left: 16px; padding-right: 16px; }
@@ -392,6 +434,21 @@
     <h4>Rastgele Sayılar (RN)</h4>
     <table class="rn-table" id="rnTable"></table>
   </div>
+
+  <div class="chart-section">
+    <div class="chart-section-header">
+      <h4>Dağılım Grafikleri</h4>
+      <button class="chart-badge badge-pdf" onclick="showModal('pdfChart')">PDF ?</button>
+      <button class="chart-badge badge-cdf" onclick="showModal('cdfChart')">CDF ?</button>
+      <span class="chart-legend">Mavi = IAT &nbsp;|&nbsp; Yeşil = ST</span>
+    </div>
+    <div class="chart-grid">
+      <div class="chart-block"><canvas id="sPDFiat" width="260" height="180"></canvas></div>
+      <div class="chart-block"><canvas id="sCDFiat" width="260" height="180"></canvas></div>
+      <div class="chart-block"><canvas id="sPDFst"  width="260" height="180"></canvas></div>
+      <div class="chart-block"><canvas id="sCDFst"  width="260" height="180"></canvas></div>
+    </div>
+  </div>
 </div>
 
 <!-- MANUEL DATA PANEL -->
@@ -416,6 +473,21 @@
   <div class="rn-section">
     <h4>Rastgele Sayılar (RN) — Verilmiştir</h4>
     <table class="rn-table" id="rnTableM"></table>
+  </div>
+
+  <div class="chart-section">
+    <div class="chart-section-header">
+      <h4>Dağılım Grafikleri</h4>
+      <button class="chart-badge badge-pdf" onclick="showModal('pdfChart')">PDF ?</button>
+      <button class="chart-badge badge-cdf" onclick="showModal('cdfChart')">CDF ?</button>
+      <span class="chart-legend">Mavi = IAT &nbsp;|&nbsp; Yeşil = ST</span>
+    </div>
+    <div class="chart-grid">
+      <div class="chart-block"><canvas id="mPDFiat" width="260" height="180"></canvas></div>
+      <div class="chart-block"><canvas id="mCDFiat" width="260" height="180"></canvas></div>
+      <div class="chart-block"><canvas id="mPDFst"  width="260" height="180"></canvas></div>
+      <div class="chart-block"><canvas id="mCDFst"  width="260" height="180"></canvas></div>
+    </div>
   </div>
 </div>
 
@@ -572,6 +644,34 @@
           Satır 2: RN Baş = önceki bitiş + 1<br>
           Satır 3: RN Baş = önceki bitiş + 1 ...
         </div>
+      `
+    },
+    pdfChart: {
+      title: 'PDF — Olasılık Dağılım Fonksiyonu',
+      body: `
+        <p><strong>PDF (Probability Density Function)</strong> her değerin ne kadar olası olduğunu gösterir.</p>
+        <p>Grafikte:</p>
+        <p>• <strong>X ekseni</strong>: IAT veya ST değerleri (dk)<br>
+           • <strong>Y ekseni</strong>: O değerin olasılığı (%)<br>
+           • <strong>Çubuklar</strong>: Her değerin görece sıklığı</p>
+        <div class="formula">P(X = x) = ilgili değerin olasılığı</div>
+        <div class="example">Örnek: IAT=3 için çubuk yüksekliği %30 ise,<br>
+        müşterilerin %30'u 3 dk arayla gelir.</div>
+        <p style="margin-top:8px">Tüm çubukların toplamı = <strong>%100</strong> olmalıdır.</p>
+      `
+    },
+    cdfChart: {
+      title: 'CDF — Kümülatif Dağılım Fonksiyonu',
+      body: `
+        <p><strong>CDF (Cumulative Distribution Function)</strong> bir değerin veya daha küçük bir değerin gerçekleşme olasılığını gösterir.</p>
+        <p>Grafikte:</p>
+        <p>• <strong>X ekseni</strong>: IAT veya ST değerleri (dk)<br>
+           • <strong>Y ekseni</strong>: 0.0'dan 1.0'a kümülatif olasılık<br>
+           • <strong>Merdiven şekli</strong>: Her adımda kümülatif artar</p>
+        <div class="formula">F(x) = P(X ≤ x)<br>Her adım = önceki + bu satırın olasılığı</div>
+        <div class="example">Örnek: F(3) = 0.75 ise,<br>
+        müşterilerin %75'i en fazla 3 dk arayla gelir.</div>
+        <p style="margin-top:8px">Son nokta mutlaka <strong>1.0</strong>'a ulaşır.</p>
       `
     },
     rnRangeEnd: {
@@ -736,6 +836,173 @@
     `;
   }
 
+  /* ════════════════════════════════
+     DRAW PDF CHART (bar chart)
+  ════════════════════════════════ */
+  function drawPDFChart(canvasId, dist, barColor, title) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const ml = 40, mr = 12, mt = 26, mb = 34;
+    const cw = W - ml - mr, ch = H - mt - mb;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 10.5px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(title, W / 2, 16);
+
+    const maxProb = Math.max(...dist.map(d => d.prob));
+    const yMax = Math.ceil(maxProb / 10) * 10 || 10;
+    const n = dist.length;
+    const slotW = cw / n;
+    const barW  = slotW * 0.55;
+
+    // Y gridlines + labels
+    for (let v = 0; v <= yMax; v += 10) {
+      const y = mt + ch - (v / yMax) * ch;
+      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(ml, y); ctx.lineTo(ml + cw, y); ctx.stroke();
+      ctx.fillStyle = '#94a3b8'; ctx.font = '8.5px Segoe UI, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(v + '%', ml - 4, y + 3);
+    }
+
+    // Bars
+    dist.forEach((row, i) => {
+      const x    = ml + i * slotW + slotW / 2 - barW / 2;
+      const barH = (row.prob / yMax) * ch;
+      const y    = mt + ch - barH;
+
+      // Bar fill
+      ctx.fillStyle = barColor + 'bb';
+      ctx.fillRect(x, y, barW, barH);
+      ctx.strokeStyle = barColor; ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, barW, barH);
+
+      // Value label on top
+      ctx.fillStyle = '#1e293b'; ctx.font = 'bold 8.5px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(row.prob + '%', x + barW / 2, y - 3);
+
+      // X label
+      ctx.fillStyle = '#475569'; ctx.font = '9px Segoe UI, sans-serif';
+      ctx.fillText(row.value, x + barW / 2, mt + ch + 14);
+    });
+
+    // Axes
+    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(ml, mt); ctx.lineTo(ml, mt + ch); ctx.lineTo(ml + cw, mt + ch);
+    ctx.stroke();
+
+    // X axis label
+    ctx.fillStyle = '#64748b'; ctx.font = '8.5px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Değer (dk)', ml + cw / 2, H - 3);
+  }
+
+  /* ════════════════════════════════
+     DRAW CDF CHART (step function)
+  ════════════════════════════════ */
+  function drawCDFChart(canvasId, dist, lineColor, title) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    const ml = 40, mr = 12, mt = 26, mb = 34;
+    const cw = W - ml - mr, ch = H - mt - mb;
+
+    ctx.clearRect(0, 0, W, H);
+
+    // Title
+    ctx.fillStyle = '#334155';
+    ctx.font = 'bold 10.5px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(title, W / 2, 16);
+
+    const n = dist.length;
+    const slotW = cw / n;
+
+    // Y gridlines + labels (0 to 1)
+    for (let v = 0; v <= 10; v += 2) {
+      const frac = v / 10;
+      const y = mt + ch - frac * ch;
+      ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(ml, y); ctx.lineTo(ml + cw, y); ctx.stroke();
+      ctx.fillStyle = '#94a3b8'; ctx.font = '8.5px Segoe UI, sans-serif';
+      ctx.textAlign = 'right';
+      ctx.fillText(frac.toFixed(1), ml - 4, y + 3);
+    }
+
+    // Shaded area under CDF
+    ctx.fillStyle = lineColor + '18';
+    ctx.beginPath();
+    ctx.moveTo(ml, mt + ch);
+    let py = mt + ch;
+    dist.forEach((row, i) => {
+      const x = ml + (i + 1) * slotW;
+      const y = mt + ch - (row.cumProb / 100) * ch;
+      ctx.lineTo(x, py);
+      ctx.lineTo(x, y);
+      py = y;
+    });
+    ctx.lineTo(ml + cw, py);
+    ctx.lineTo(ml + cw, mt + ch);
+    ctx.closePath();
+    ctx.fill();
+
+    // Step line
+    ctx.strokeStyle = lineColor; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(ml, mt + ch);
+    py = mt + ch;
+    dist.forEach((row, i) => {
+      const x = ml + (i + 1) * slotW;
+      const y = mt + ch - (row.cumProb / 100) * ch;
+      ctx.lineTo(x, py);
+      ctx.lineTo(x, y);
+      py = y;
+    });
+    ctx.lineTo(ml + cw, py);
+    ctx.stroke();
+
+    // Dots + x labels
+    dist.forEach((row, i) => {
+      const x = ml + (i + 1) * slotW;
+      const y = mt + ch - (row.cumProb / 100) * ch;
+
+      ctx.beginPath();
+      ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = lineColor; ctx.fill();
+      ctx.strokeStyle = 'white'; ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // X label
+      ctx.fillStyle = '#475569'; ctx.font = '9px Segoe UI, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(row.value, x, mt + ch + 14);
+
+      // Cumulative label
+      ctx.fillStyle = lineColor; ctx.font = 'bold 8px Segoe UI, sans-serif';
+      ctx.fillText((row.cumProb / 100).toFixed(2), x, y - 6);
+    });
+
+    // Axes
+    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(ml, mt); ctx.lineTo(ml, mt + ch); ctx.lineTo(ml + cw, mt + ch);
+    ctx.stroke();
+
+    // X axis label
+    ctx.fillStyle = '#64748b'; ctx.font = '8.5px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Değer (dk)', ml + cw / 2, H - 3);
+  }
+
   function renderRNTable(n, isDecimal, tableId) {
     const rnTable = document.getElementById(tableId);
     let header = '<thead><tr><th>Pkt No.</th>';
@@ -822,12 +1089,20 @@
       renderDistTable(document.getElementById('iatDistTable'), iatDist, 'IAT', isDecimal);
       renderDistTable(document.getElementById('stDistTable'),  stDist,  'ST',  isDecimal);
       renderRNTable(n, isDecimal, 'rnTable');
+      drawPDFChart('sPDFiat', iatDist, '#3b82f6', 'IAT — PDF');
+      drawCDFChart('sCDFiat', iatDist, '#3b82f6', 'IAT — CDF');
+      drawPDFChart('sPDFst',  stDist,  '#16a34a', 'ST — PDF');
+      drawCDFChart('sCDFst',  stDist,  '#16a34a', 'ST — CDF');
     }
 
     if (currentMode === 'manuel') {
       renderManuelDistTable(document.getElementById('iatDistTableM'), iatDist, 'IAT', 'iat');
       renderManuelDistTable(document.getElementById('stDistTableM'),  stDist,  'ST',  'st');
       renderRNTable(n, false, 'rnTableM');
+      drawPDFChart('mPDFiat', iatDist, '#3b82f6', 'IAT — PDF');
+      drawCDFChart('mCDFiat', iatDist, '#3b82f6', 'IAT — CDF');
+      drawPDFChart('mPDFst',  stDist,  '#16a34a', 'ST — PDF');
+      drawCDFChart('mCDFst',  stDist,  '#16a34a', 'ST — CDF');
     }
 
     document.getElementById('statsPanel').classList.remove('visible');
