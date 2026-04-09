@@ -63,6 +63,7 @@
     .mode-pratik  { background: #fef9c3; color: #92400e; border: 1px solid #fde68a; }
     .mode-sinav   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
     .mode-decimal { background: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; }
+    .mode-manuel  { background: #ccfbf1; color: #134e4a; border: 1px solid #99f6e4; }
 
     /* ── SINAV DATA PANEL ── */
     .sinav-panel {
@@ -79,6 +80,24 @@
       font-size: 1rem; color: #dc2626; margin-bottom: 4px; font-weight: 700;
     }
     .sinav-panel .subtitle {
+      font-size: 0.8rem; color: #64748b; margin-bottom: 16px;
+    }
+
+    /* ── MANUEL DATA PANEL ── */
+    .manuel-panel {
+      display: none;
+      margin: 20px 32px 0;
+      background: white;
+      border-radius: 12px;
+      padding: 20px 24px;
+      box-shadow: 0 1px 8px rgba(0,0,0,0.08);
+      border-left: 4px solid #0d9488;
+    }
+    .manuel-panel.visible { display: block; }
+    .manuel-panel h3 {
+      font-size: 1rem; color: #0d9488; margin-bottom: 4px; font-weight: 700;
+    }
+    .manuel-panel .subtitle {
       font-size: 0.8rem; color: #64748b; margin-bottom: 16px;
     }
 
@@ -124,6 +143,31 @@
       color: #7c3aed;
       font-weight: 600;
     }
+
+    /* Manuel dist table inputs */
+    .dist-table input[type="number"] {
+      width: 58px; padding: 4px 5px;
+      border: 2px solid #cbd5e1; border-radius: 5px;
+      text-align: center; font-size: 0.8rem;
+      -moz-appearance: textfield;
+    }
+    .dist-table input[type="number"]::-webkit-outer-spin-button,
+    .dist-table input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .dist-table input[type="number"]:focus { outline: none; border-color: #0d9488; }
+    .dist-table input.correct   { border-color: #16a34a; background: #dcfce7; }
+    .dist-table input.incorrect { border-color: #dc2626; background: #fee2e2; }
+    .dist-table input.empty-err { border-color: #f97316; background: #fff7ed; }
+
+    /* Help button inside dist table header (dark bg) */
+    .help-btn-tbl {
+      width: 16px; height: 16px; border-radius: 50%;
+      background: #cbd5e1; color: #475569;
+      border: 1px solid #94a3b8;
+      font-size: 10px; font-weight: 700; cursor: pointer;
+      padding: 0; line-height: 1; flex-shrink: 0;
+      transition: background 0.15s; vertical-align: middle;
+    }
+    .help-btn-tbl:hover { background: #94a3b8; color: white; }
 
     /* ── RN TABLE ── */
     .rn-section { margin-top: 4px; }
@@ -293,7 +337,7 @@
 
     @media (max-width: 640px) {
       .controls, .table-wrapper, .action-row,
-      .stats-panel, .score-bar, .sinav-panel { padding-left: 16px; padding-right: 16px; }
+      .stats-panel, .score-bar, .sinav-panel, .manuel-panel { padding-left: 16px; padding-right: 16px; }
       header { padding: 16px; }
     }
   </style>
@@ -309,9 +353,10 @@
 <div class="controls">
   <label>Mod:</label>
   <select id="modeSelect">
-    <option value="pratik">Pratik Modu (IAT & ST verilir)</option>
+    <option value="pratik">Pratik Modu (IAT &amp; ST verilir)</option>
     <option value="sinav">Sınav Modu — Tam Sayı RN (00–99)</option>
     <option value="sinav-decimal">Sınav Modu — Ondalık RN (0.00–1.00)</option>
+    <option value="manuel">Manuel Mod — Tabloyu Kendin Doldur</option>
   </select>
 
   <label>Müşteri sayısı:</label>
@@ -327,10 +372,10 @@
   <span id="modeBadge" class="mode-badge mode-pratik">PRATİK MODU</span>
 </div>
 
-<!-- SINAV DATA PANEL (only visible in sinav mode) -->
+<!-- SINAV DATA PANEL (sinav / sinav-decimal) -->
 <div class="sinav-panel" id="sinavPanel">
   <h3>Sınav Verileri</h3>
-  <p class="subtitle">Aşağıdaki olasılık tablolarını ve rastgele sayıları kullanarak IAT ve ST değerlerini bulun, ardından simülasyon tablosunu doldurun.</p>
+  <p class="subtitle" id="sinavSubtitle">Aşağıdaki olasılık tablolarını ve rastgele sayıları kullanarak IAT ve ST değerlerini bulun, ardından simülasyon tablosunu doldurun.</p>
 
   <div class="dist-grid">
     <div class="dist-block iat-block">
@@ -346,6 +391,31 @@
   <div class="rn-section">
     <h4>Rastgele Sayılar (RN)</h4>
     <table class="rn-table" id="rnTable"></table>
+  </div>
+</div>
+
+<!-- MANUEL DATA PANEL -->
+<div class="manuel-panel" id="manuelPanel">
+  <h3>Manuel Mod — Dağılım Tablolarını Doldur</h3>
+  <p class="subtitle">
+    Sarı hücreler <strong>verilmiştir</strong>. Kümülatif (%) ve RN Aralığı sütunlarını kendin doldur,
+    ardından RN'leri kullanarak IAT &amp; ST değerlerini bul ve simülasyon tablosunu tamamla.
+  </p>
+
+  <div class="dist-grid">
+    <div class="dist-block iat-block">
+      <h4>Geliş Dağılımı — IAT (dk)</h4>
+      <table class="dist-table" id="iatDistTableM"></table>
+    </div>
+    <div class="dist-block st-block">
+      <h4>Hizmet Dağılımı — ST (dk)</h4>
+      <table class="dist-table" id="stDistTableM"></table>
+    </div>
+  </div>
+
+  <div class="rn-section">
+    <h4>Rastgele Sayılar (RN) — Verilmiştir</h4>
+    <table class="rn-table" id="rnTableM"></table>
   </div>
 </div>
 
@@ -403,8 +473,8 @@
   let simData   = [];
   let iatDist   = [];   // [{value, prob, cumProb, rnStart, rnEnd}]
   let stDist    = [];
-  let rnIAT     = [];   // random numbers used for IAT per customer
-  let rnST      = [];   // random numbers used for ST per customer
+  let rnIAT     = [];
+  let rnST      = [];
   let currentMode = 'pratik';
 
   /* ════════════════════════════════
@@ -416,8 +486,8 @@
       body: `
         <p>İki ardışık müşteri arasındaki <strong>geliş aralığı</strong> süresidir.</p>
         <div class="formula">A₁ = IAT₁<br>Aᵢ = Aᵢ₋₁ + IATᵢ</div>
-        <p><strong>Sınav Modunda nasıl bulunur?</strong><br>
-        Verilen rastgele sayı (RN), IAT olasılık tablosundaki hangi aralığa denk geliyorsa o IAT değeri kullanılır.</p>
+        <p><strong>Sınav / Manuel Modunda nasıl bulunur?</strong><br>
+        Verilen RN değeri, IAT olasılık tablosundaki hangi RN aralığına denk geliyorsa o IAT değeri kullanılır.</p>
         <div class="example">Örnek: RN = 47, aralık 40–69 → IAT = 3 dk</div>
       `
     },
@@ -426,7 +496,7 @@
       body: `
         <p>Bir müşteriye sunulan <strong>hizmet süresi</strong>dir.</p>
         <div class="formula">ST = hizmet bitiş − hizmet başlangıcı</div>
-        <p><strong>Sınav Modunda nasıl bulunur?</strong><br>
+        <p><strong>Sınav / Manuel Modunda nasıl bulunur?</strong><br>
         RN değeri ST olasılık tablosundaki aralığa bakılarak bulunur.</p>
         <div class="example">Örnek: RN = 73, aralık 70–89 → ST = 10 dk</div>
       `
@@ -475,6 +545,47 @@
         <div class="formula">TSᵢ = Qᵢ + STᵢ</div>
         <div class="example">D₃=16, A₃=8 → TS₃ = 16−8 = 8 dk</div>
       `
+    },
+    cumulative: {
+      title: 'Kümülatif Olasılık (%) Nasıl Hesaplanır?',
+      body: `
+        <p>Her satırın kümülatifi, o satıra kadar olan tüm olasılıkların toplamıdır.</p>
+        <div class="formula">Küm₁ = Olas₁<br>Küm₂ = Küm₁ + Olas₂<br>Küm₃ = Küm₂ + Olas₃<br>⋮<br>Son satır = 100</div>
+        <p><strong>Adım adım:</strong></p>
+        <p>1. İlk satır: kümülatif = o satırın olasılığı<br>
+           2. Sonraki satır: kümülatif = bir önceki kümülatif + bu satırın olasılığı<br>
+           3. Son satır mutlaka <strong>100</strong> olmalı</p>
+        <div class="example">
+          Olas: 20, 30, 50<br>
+          Küm: 20 → 50 → 100 ✓
+        </div>
+      `
+    },
+    rnRangeStart: {
+      title: 'RN Başlangıç Değeri Nasıl Bulunur?',
+      body: `
+        <p>Her satır için RN aralığının başlangıç değerini hesaplar.</p>
+        <div class="formula">İlk satır: RN Başlangıç = 00<br>Sonraki satır: RN Baş = Önceki RN Bitiş + 1</div>
+        <p><strong>Kural:</strong> Her satırın başlangıcı, bir önceki satırın bitişinden 1 fazladır.</p>
+        <div class="example">
+          Satır 1: RN Baş = 00<br>
+          Satır 2: RN Baş = önceki bitiş + 1<br>
+          Satır 3: RN Baş = önceki bitiş + 1 ...
+        </div>
+      `
+    },
+    rnRangeEnd: {
+      title: 'RN Bitiş Değeri Nasıl Bulunur?',
+      body: `
+        <p>Her satır için RN aralığının bitiş değerini hesaplar.</p>
+        <div class="formula">RN Bitiş = Kümülatif − 1<br>(Son satır her zaman 99)</div>
+        <p><strong>Kural:</strong> Bu satırın bitiş değeri = kümülatif olasılığı − 1</p>
+        <div class="example">
+          Kümülatif = 20 → RN Bitiş = 19<br>
+          Kümülatif = 50 → RN Bitiş = 49<br>
+          Kümülatif = 100 → RN Bitiş = 99 (son satır)
+        </div>
+      `
     }
   };
 
@@ -485,10 +596,8 @@
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
-  /* Build a probability distribution from a set of possible values */
   function buildDist(values) {
     const n = values.length;
-    // Generate weights and normalize
     const weights = values.map(() => randInt(1, 10));
     const total   = weights.reduce((a,b) => a+b, 0);
     let cumProb   = 0;
@@ -501,7 +610,6 @@
       rnStart = rnEnd + 1;
       return row;
     });
-    // Fix last cumProb to exactly 100
     dist[n-1].cumProb = 100;
     dist[n-1].rnEnd   = 99;
     return dist;
@@ -519,7 +627,6 @@
      GENERATE SIMULATION
   ════════════════════════════════ */
   function generateSim(n, mode) {
-    // Build distributions (always, so pratik mode can also use fixed values)
     iatDist = buildDist([1, 2, 3, 4, 5]);
     stDist  = buildDist([4, 6, 8, 10, 12, 14]);
 
@@ -549,7 +656,7 @@
   }
 
   /* ════════════════════════════════
-     RENDER DISTRIBUTION TABLES
+     RENDER DISTRIBUTION TABLES (sinav modes)
   ════════════════════════════════ */
   function renderDistTable(tableEl, dist, unit, isDecimal) {
     const fmtRange = (start, end, isLast) => {
@@ -560,7 +667,7 @@
       }
       return `${String(start).padStart(2,'0')} – ${String(end).padStart(2,'0')}`;
     };
-    const cumLabel = isDecimal ? 'Kümülatif (0–1)' : 'Kümülatif (%)';
+    const cumLabel  = isDecimal ? 'Kümülatif (0–1)' : 'Kümülatif (%)';
     const probLabel = isDecimal ? 'Olasılık' : 'Olasılık (%)';
 
     tableEl.innerHTML = `
@@ -585,8 +692,52 @@
     `;
   }
 
-  function renderRNTable(n, isDecimal) {
-    const rnTable = document.getElementById('rnTable');
+  /* ════════════════════════════════
+     RENDER MANUEL DISTRIBUTION TABLE
+     (value+prob given, rest = blank inputs)
+  ════════════════════════════════ */
+  function renderManuelDistTable(tableEl, dist, unit, prefix) {
+    tableEl.innerHTML = `
+      <thead>
+        <tr>
+          <th>${unit} (dk)</th>
+          <th>Olasılık (%)</th>
+          <th>
+            <div style="display:flex;align-items:center;justify-content:center;gap:4px">
+              Kümülatif (%)
+              <button class="help-btn-tbl" onclick="showModal('cumulative')">?</button>
+            </div>
+          </th>
+          <th>
+            <div style="display:flex;align-items:center;justify-content:center;gap:4px">
+              RN Başlangıç
+              <button class="help-btn-tbl" onclick="showModal('rnRangeStart')">?</button>
+            </div>
+          </th>
+          <th>
+            <div style="display:flex;align-items:center;justify-content:center;gap:4px">
+              RN Bitiş
+              <button class="help-btn-tbl" onclick="showModal('rnRangeEnd')">?</button>
+            </div>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        ${dist.map((r, idx) => `
+          <tr>
+            <td class="given"><strong>${r.value}</strong></td>
+            <td class="given">${r.prob}</td>
+            <td><input type="number" min="1" max="100" id="${prefix}Cum_${idx}" placeholder="—" /></td>
+            <td><input type="number" min="0" max="99"  id="${prefix}RnS_${idx}" placeholder="—" /></td>
+            <td><input type="number" min="0" max="99"  id="${prefix}RnE_${idx}" placeholder="—" /></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    `;
+  }
+
+  function renderRNTable(n, isDecimal, tableId) {
+    const rnTable = document.getElementById(tableId);
     let header = '<thead><tr><th>Pkt No.</th>';
     for (let i = 0; i < n; i++) header += `<th>${i+1}</th>`;
     header += '</tr></thead>';
@@ -632,40 +783,77 @@
     const n = parseInt(document.getElementById('countSelect').value);
     currentMode = document.getElementById('modeSelect').value;
 
-    const badge = document.getElementById('modeBadge');
-    const panel = document.getElementById('sinavPanel');
+    const badge       = document.getElementById('modeBadge');
+    const sinavPanel  = document.getElementById('sinavPanel');
+    const manuelPanel = document.getElementById('manuelPanel');
+    const isDecimal   = currentMode === 'sinav-decimal';
 
-    const isDecimal = currentMode === 'sinav-decimal';
+    sinavPanel.classList.remove('visible');
+    manuelPanel.classList.remove('visible');
 
     if (currentMode === 'pratik') {
       badge.textContent = 'PRATİK MODU';
       badge.className = 'mode-badge mode-pratik';
-      panel.classList.remove('visible');
-    } else if (isDecimal) {
-      badge.textContent = 'SINAV — ONDALIK RN';
-      badge.className = 'mode-badge mode-decimal';
-      panel.classList.add('visible');
-      document.querySelector('.sinav-panel .subtitle').textContent =
-        'Ondalık RN (0.00–1.00) yöntemi: RN değerini tablodaki kümülatif aralığa bakarak IAT ve ST değerine dönüştürün.';
-    } else {
+
+    } else if (currentMode === 'sinav') {
       badge.textContent = 'SINAV — TAM SAYI RN';
       badge.className = 'mode-badge mode-sinav';
-      panel.classList.add('visible');
-      document.querySelector('.sinav-panel .subtitle').textContent =
+      sinavPanel.classList.add('visible');
+      document.getElementById('sinavSubtitle').textContent =
         'Tam sayı RN (00–99) yöntemi: RN değerini tablodaki aralığa bakarak IAT ve ST değerine dönüştürün.';
+
+    } else if (currentMode === 'sinav-decimal') {
+      badge.textContent = 'SINAV — ONDALIK RN';
+      badge.className = 'mode-badge mode-decimal';
+      sinavPanel.classList.add('visible');
+      document.getElementById('sinavSubtitle').textContent =
+        'Ondalık RN (0.00–1.00) yöntemi: RN değerini tablodaki kümülatif aralığa bakarak IAT ve ST değerine dönüştürün.';
+
+    } else if (currentMode === 'manuel') {
+      badge.textContent = 'MANUEL MOD';
+      badge.className = 'mode-badge mode-manuel';
+      manuelPanel.classList.add('visible');
     }
 
     simData = generateSim(n, currentMode);
     buildTable();
 
-    if (currentMode === 'sinav' || isDecimal) {
+    if (currentMode === 'sinav' || currentMode === 'sinav-decimal') {
       renderDistTable(document.getElementById('iatDistTable'), iatDist, 'IAT', isDecimal);
       renderDistTable(document.getElementById('stDistTable'),  stDist,  'ST',  isDecimal);
-      renderRNTable(n, isDecimal);
+      renderRNTable(n, isDecimal, 'rnTable');
+    }
+
+    if (currentMode === 'manuel') {
+      renderManuelDistTable(document.getElementById('iatDistTableM'), iatDist, 'IAT', 'iat');
+      renderManuelDistTable(document.getElementById('stDistTableM'),  stDist,  'ST',  'st');
+      renderRNTable(n, false, 'rnTableM');
     }
 
     document.getElementById('statsPanel').classList.remove('visible');
     document.getElementById('scoreBar').classList.remove('visible');
+  }
+
+  /* ════════════════════════════════
+     CHECK CELL HELPER
+  ════════════════════════════════ */
+  function checkCell(inputId, expected) {
+    const input = document.getElementById(inputId);
+    if (!input) return { t: 0, c: 0 };
+    const val = input.value.trim();
+    if (val === '') {
+      input.className = 'empty-err';
+      input.title = `Boş bırakıldı. Doğru: ${expected}`;
+      return { t: 1, c: 0 };
+    } else if (parseInt(val) === expected) {
+      input.className = 'correct';
+      input.title = 'Doğru!';
+      return { t: 1, c: 1 };
+    } else {
+      input.className = 'incorrect';
+      input.title = `Yanlış! Doğru cevap: ${expected}`;
+      return { t: 1, c: 0 };
+    }
   }
 
   /* ════════════════════════════════
@@ -675,6 +863,23 @@
     if (!simData.length) return;
     let total = 0, correct = 0;
 
+    // Manuel mod: önce dağılım tablolarını kontrol et
+    if (currentMode === 'manuel') {
+      iatDist.forEach((row, idx) => {
+        let r;
+        r = checkCell(`iatCum_${idx}`, row.cumProb); total += r.t; correct += r.c;
+        r = checkCell(`iatRnS_${idx}`, row.rnStart); total += r.t; correct += r.c;
+        r = checkCell(`iatRnE_${idx}`, row.rnEnd);   total += r.t; correct += r.c;
+      });
+      stDist.forEach((row, idx) => {
+        let r;
+        r = checkCell(`stCum_${idx}`, row.cumProb); total += r.t; correct += r.c;
+        r = checkCell(`stRnS_${idx}`, row.rnStart); total += r.t; correct += r.c;
+        r = checkCell(`stRnE_${idx}`, row.rnEnd);   total += r.t; correct += r.c;
+      });
+    }
+
+    // Simülasyon tablosu
     const colMap = [
       { key: 'arrival', col: 'arrival' },
       { key: 'ss',      col: 'ss'      },
@@ -682,28 +887,15 @@
       { key: 'queue',   col: 'queue'   },
       { key: 'system',  col: 'system'  },
     ];
-    if (currentMode === 'sinav' || currentMode === 'sinav-decimal') {
+    if (currentMode !== 'pratik') {
       colMap.unshift({ key: 'st',  col: 'st'  });
       colMap.unshift({ key: 'iat', col: 'iat' });
     }
 
     simData.forEach((row, i) => {
       colMap.forEach(({ key, col }) => {
-        const input = document.getElementById(`${col}_${i}`);
-        if (!input) return;
-        total++;
-        const val = input.value.trim();
-        if (val === '') {
-          input.className = 'empty-err';
-          input.title = `Boş bırakıldı. Doğru: ${row[key]}`;
-        } else if (parseInt(val) === row[key]) {
-          input.className = 'correct';
-          input.title = 'Doğru!';
-          correct++;
-        } else {
-          input.className = 'incorrect';
-          input.title = `Yanlış! Doğru cevap: ${row[key]}`;
-        }
+        const r = checkCell(`${col}_${i}`, row[key]);
+        total += r.t; correct += r.c;
       });
     });
 
@@ -721,8 +913,28 @@
   ════════════════════════════════ */
   function showSolution() {
     if (!simData.length) return;
+
+    // Manuel mod: dağılım tablolarını doldur
+    if (currentMode === 'manuel') {
+      iatDist.forEach((row, idx) => {
+        setInput(`iatCum_${idx}`, row.cumProb);
+        setInput(`iatRnS_${idx}`, row.rnStart);
+        setInput(`iatRnE_${idx}`, row.rnEnd);
+      });
+      stDist.forEach((row, idx) => {
+        setInput(`stCum_${idx}`, row.cumProb);
+        setInput(`stRnS_${idx}`, row.rnStart);
+        setInput(`stRnE_${idx}`, row.rnEnd);
+      });
+      // Mark dist inputs as correct
+      document.querySelectorAll('.dist-table input').forEach(inp => {
+        inp.className = 'correct'; inp.title = '';
+      });
+    }
+
+    // Simülasyon tablosu
     simData.forEach((row, i) => {
-      if (currentMode === 'sinav' || currentMode === 'sinav-decimal') {
+      if (currentMode !== 'pratik') {
         setInput(`iat_${i}`, row.iat);
         setInput(`st_${i}`,  row.st);
       }
@@ -748,6 +960,12 @@
      CLEAR
   ════════════════════════════════ */
   function clearAnswers() {
+    // Manuel mod: dağılım tablosu inputlarını temizle
+    if (currentMode === 'manuel') {
+      document.querySelectorAll('.dist-table input').forEach(inp => {
+        inp.value = ''; inp.className = ''; inp.title = '';
+      });
+    }
     document.querySelectorAll('#simBody input').forEach(inp => {
       inp.value = ''; inp.className = ''; inp.title = '';
     });
@@ -797,6 +1015,7 @@
   function closeModalOutside(e) {
     if (e.target === document.getElementById('modalOverlay')) closeModal();
   }
+
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
   /* ════════════════════════════════
