@@ -64,6 +64,27 @@
     .mode-sinav   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
     .mode-decimal { background: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; }
     .mode-manuel  { background: #ccfbf1; color: #134e4a; border: 1px solid #99f6e4; }
+    .mode-berber  { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
+
+    .berber-cap-wrap {
+      display: none; align-items: center; gap: 8px;
+      background: #fff7ed; border: 1px solid #fed7aa;
+      border-radius: 8px; padding: 6px 12px;
+    }
+    .berber-cap-wrap.visible { display: flex; }
+    .berber-cap-wrap label { font-size: 0.82rem; font-weight: 600; color: #9a3412; }
+
+    .durum-select {
+      padding: 5px 8px; border: 2px solid #cbd5e1;
+      border-radius: 6px; font-size: 0.82rem; cursor: pointer;
+      background: white;
+    }
+    .durum-select.correct   { border-color: #16a34a; background: #dcfce7; }
+    .durum-select.incorrect { border-color: #dc2626; background: #fee2e2; }
+    .durum-select.empty-err { border-color: #f97316; background: #fff7ed; }
+
+    .rejected td { opacity: 0.5; }
+    td.rej-cell  { background: #f1f5f9 !important; color: #94a3b8; font-size: 0.85rem; }
 
     /* ── SINAV DATA PANEL ── */
     .sinav-panel {
@@ -421,6 +442,7 @@
     <option value="sinav">Sınav Modu — Tam Sayı RN (00–99)</option>
     <option value="sinav-decimal">Sınav Modu — Ondalık RN (0.00–1.00)</option>
     <option value="manuel">Manuel Mod — Tabloyu Kendin Doldur</option>
+    <option value="berber">Berber Sorusu (Kapasiteli Kuyruk)</option>
   </select>
 
   <label>Müşteri sayısı:</label>
@@ -440,6 +462,16 @@
     <span class="toggle-track"><span class="toggle-thumb"></span></span>
     <span class="toggle-lbl">&#127979; Hoca Formatı (0.00–1.00)</span>
   </label>
+
+  <div class="berber-cap-wrap" id="berberCapWrap">
+    <label>&#9986; Bekleme sandalyesi:</label>
+    <select id="berberCap" onchange="newSim()">
+      <option value="1">1 sandalye</option>
+      <option value="2" selected>2 sandalye</option>
+      <option value="3">3 sandalye</option>
+      <option value="4">4 sandalye</option>
+    </select>
+  </div>
 </div>
 
 <!-- SINAV DATA PANEL (sinav / sinav-decimal) -->
@@ -651,6 +683,37 @@
         <div class="example">D₃=16, A₃=8 → TS₃ = 16−8 = 8 dk</div>
       `
     },
+    ninSys: {
+      title: 'Sistemde Kişi Sayısı (Berber Dolu mu?)',
+      body: `
+        <p>Bu müşteri geldiği anda berberde kaç kişi var? (Hizmet alan + bekleyenler)</p>
+        <p>Formül:</p>
+        <div class="formula">Sistemde Kişi = daha önce kabul edilmiş ve<br>henüz ayrılmamış müşteri sayısı</div>
+        <p>Yani: müşteri i geldiğinde, daha önce kabul edilen<br>
+        ve <strong>Ayrılış Zamanı > Varış Zamanı₍ᵢ₎</strong> olan müşterileri say.</p>
+        <div class="example">
+          Örnek: Bekleme kapasitesi = 2 sandalye → Sistem kapasitesi = 3<br>
+          Sistemde 0 kişi → Berber boş, direkt hizmet<br>
+          Sistemde 1-2 kişi → Bekleme var ama yer var → Kabul<br>
+          Sistemde 3 kişi → Dolu → Reddedildi
+        </div>
+      `
+    },
+    berberDurum: {
+      title: 'Durum — Kabul / Reddedildi',
+      body: `
+        <p>Müşterinin berberde yer bulup bulamadığını gösterir.</p>
+        <div class="formula">Sistem Kapasitesi K = Bekleme Sandalyesi + 1</div>
+        <p>Karar kuralı:</p>
+        <p>• Sistemde Kişi &lt; K → <strong style="color:#16a34a">Kabul</strong> (yer var)<br>
+           • Sistemde Kişi ≥ K → <strong style="color:#dc2626">Reddedildi</strong> (dolu)</p>
+        <div class="example">
+          2 bekleme sandalyesi → K = 3<br>
+          Sistemde 2 kişi → 2 &lt; 3 → Kabul ✓<br>
+          Sistemde 3 kişi → 3 ≥ 3 → Reddedildi ✗
+        </div>
+      `
+    },
     cumulative: {
       title: 'Kümülatif Olasılık (%) Nasıl Hesaplanır?',
       body: `
@@ -784,6 +847,44 @@
       const system  = dep - arrival;
       rows.push({ iat, st, arrival, ss, dep, queue, system, rnIAT: rnIAT[i], rnST: rnST[i] });
       prevDep = dep;
+    }
+    return rows;
+  }
+
+  /* ════════════════════════════════
+     GENERATE BERBER SIMULATION
+  ════════════════════════════════ */
+  function generateBerberSim(n, maxWait) {
+    iatDist = buildDist([1, 2, 3, 4, 5]);
+    stDist  = buildDist([4, 6, 8, 10, 12, 14]);
+    rnIAT   = Array.from({length: n}, () => randInt(0, 99));
+    rnST    = Array.from({length: n}, () => randInt(0, 99));
+
+    const rows = [];
+    for (let i = 0; i < n; i++) {
+      const iat     = rnToValue(rnIAT[i], iatDist, false);
+      const st      = rnToValue(rnST[i],  stDist,  false);
+      const arrival = i === 0 ? iat : rows[i-1].arrival + iat;
+
+      // Count accepted customers still in system (not yet departed) when this customer arrives
+      const nInSys = rows.filter(r => r.accepted && r.dep > arrival).length;
+      const sysCapacity = maxWait + 1; // waiting chairs + 1 service chair
+      const accepted = nInSys < sysCapacity;
+
+      if (accepted) {
+        const acceptedRows = rows.filter(r => r.accepted);
+        const lastDep = acceptedRows.length > 0 ? acceptedRows[acceptedRows.length - 1].dep : 0;
+        const ss    = Math.max(arrival, lastDep);
+        const dep   = ss + st;
+        const queue = ss - arrival;
+        const sys   = dep - arrival;
+        rows.push({ iat, st, arrival, nInSys, accepted: true,
+                    ss, dep, queue, system: sys, rnIAT: rnIAT[i], rnST: rnST[i] });
+      } else {
+        rows.push({ iat, st, arrival, nInSys, accepted: false,
+                    ss: null, dep: null, queue: null, system: null,
+                    rnIAT: rnIAT[i], rnST: rnST[i] });
+      }
     }
     return rows;
   }
@@ -1084,6 +1185,82 @@
   }
 
   /* ════════════════════════════════
+     BUILD BERBER TABLE
+  ════════════════════════════════ */
+  function buildBerberTable() {
+    // Update header dynamically for berber mode
+    document.getElementById('simHead').innerHTML = `
+      <th><div class="th-inner">Müşteri No.</div></th>
+      <th><div class="th-inner">IAT</div></th>
+      <th><div class="th-inner">ST</div></th>
+      <th><div class="th-inner">Varış Zamanı <button class="help-btn" onclick="showModal('arrival')">?</button></div></th>
+      <th><div class="th-inner">Sistemde Kişi <button class="help-btn" onclick="showModal('ninSys')">?</button></div></th>
+      <th><div class="th-inner">Durum <button class="help-btn" onclick="showModal('berberDurum')">?</button></div></th>
+      <th><div class="th-inner">Hizmet Başlangıcı <button class="help-btn" onclick="showModal('serviceStart')">?</button></div></th>
+      <th><div class="th-inner">Ayrılış <button class="help-btn" onclick="showModal('departure')">?</button></div></th>
+      <th><div class="th-inner">Kuyrukta Bekleme <button class="help-btn" onclick="showModal('queue')">?</button></div></th>
+      <th><div class="th-inner">Sistemde Kalma <button class="help-btn" onclick="showModal('system')">?</button></div></th>
+    `;
+
+    const tbody = document.getElementById('simBody');
+    tbody.innerHTML = '';
+
+    simData.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="pkt-no">${i + 1}</td>
+        <td class="given">${row.iat}</td>
+        <td class="given">${row.st}</td>
+        <td><input type="number" min="1" id="arrival_${i}" placeholder="—" /></td>
+        <td><input type="number" min="0" id="ninSys_${i}" placeholder="—" /></td>
+        <td>
+          <select class="durum-select" id="durum_${i}" onchange="onBerberDurumChange(${i})">
+            <option value="">—</option>
+            <option value="K">Kabul</option>
+            <option value="R">Reddedildi</option>
+          </select>
+        </td>
+        <td><input type="number" min="0" id="ss_${i}"     placeholder="—" /></td>
+        <td><input type="number" min="0" id="dep_${i}"    placeholder="—" /></td>
+        <td><input type="number" min="0" id="queue_${i}"  placeholder="—" /></td>
+        <td><input type="number" min="0" id="system_${i}" placeholder="—" /></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function onBerberDurumChange(i) {
+    const val = document.getElementById(`durum_${i}`).value;
+    ['ss','dep','queue','system'].forEach(col => {
+      const inp = document.getElementById(`${col}_${i}`);
+      if (!inp) return;
+      if (val === 'R') {
+        inp.disabled = true; inp.value = '';
+        inp.style.background = '#f1f5f9'; inp.style.color = '#94a3b8';
+      } else {
+        inp.disabled = false;
+        inp.style.background = ''; inp.style.color = '';
+      }
+    });
+  }
+
+  /* ════════════════════════════════
+     RESTORE NORMAL HEADER
+  ════════════════════════════════ */
+  function restoreNormalHeader() {
+    document.getElementById('simHead').innerHTML = `
+      <th><div class="th-inner">Pkt No.</div></th>
+      <th><div class="th-inner">IAT <button class="help-btn" onclick="showModal('iat')">?</button></div></th>
+      <th><div class="th-inner">ST <button class="help-btn" onclick="showModal('st')">?</button></div></th>
+      <th><div class="th-inner">Arrival Time <button class="help-btn" onclick="showModal('arrival')">?</button></div></th>
+      <th><div class="th-inner">Service Starts At <button class="help-btn" onclick="showModal('serviceStart')">?</button></div></th>
+      <th><div class="th-inner">Departure Time <button class="help-btn" onclick="showModal('departure')">?</button></div></th>
+      <th><div class="th-inner">Time in Queue <button class="help-btn" onclick="showModal('queue')">?</button></div></th>
+      <th><div class="th-inner">Time in System <button class="help-btn" onclick="showModal('system')">?</button></div></th>
+    `;
+  }
+
+  /* ════════════════════════════════
      NEW SIMULATION
   ════════════════════════════════ */
   function newSim() {
@@ -1094,6 +1271,7 @@
     const sinavPanel  = document.getElementById('sinavPanel');
     const manuelPanel = document.getElementById('manuelPanel');
     const isDecimal   = currentMode === 'sinav-decimal';
+    const berberCapWrap = document.getElementById('berberCapWrap');
 
     sinavPanel.classList.remove('visible');
     manuelPanel.classList.remove('visible');
@@ -1105,6 +1283,7 @@
       badge.textContent = 'PRATİK MODU';
       badge.className = 'mode-badge mode-pratik';
       toggleWrap.style.display = 'none';
+      berberCapWrap.classList.remove('visible');
 
     } else if (currentMode === 'sinav') {
       badge.textContent = isTF() ? 'SINAV — ONDALIK RN' : 'SINAV — TAM SAYI RN';
@@ -1114,6 +1293,7 @@
         ? 'Hoca formatı aktif: Ondalık RN (0.00–1.00) ile IAT ve ST değerlerini bulun.'
         : 'Tam sayı RN (00–99) yöntemi: RN değerini tablodaki aralığa bakarak IAT ve ST değerine dönüştürün.';
       toggleWrap.style.display = 'flex';
+      berberCapWrap.classList.remove('visible');
 
     } else if (currentMode === 'sinav-decimal') {
       badge.textContent = 'SINAV — ONDALIK RN';
@@ -1122,18 +1302,33 @@
       document.getElementById('sinavSubtitle').textContent =
         'Ondalık RN (0.00–1.00) yöntemi: RN değerini tablodaki kümülatif aralığa bakarak IAT ve ST değerine dönüştürün.';
       toggleWrap.style.display = 'none';
+      berberCapWrap.classList.remove('visible');
 
     } else if (currentMode === 'manuel') {
       badge.textContent = 'MANUEL MOD';
       badge.className = 'mode-badge mode-manuel';
       manuelPanel.classList.add('visible');
       toggleWrap.style.display = 'flex';
+      berberCapWrap.classList.remove('visible');
+
+    } else if (currentMode === 'berber') {
+      badge.textContent = 'BERBER SORUSU';
+      badge.className = 'mode-badge mode-berber';
+      toggleWrap.style.display = 'none';
+      berberCapWrap.classList.add('visible');
     }
 
     const dec = isDecimal || isTF(); // effective decimal flag
 
-    simData = generateSim(n, currentMode);
-    buildTable();
+    if (currentMode === 'berber') {
+      const maxWait = parseInt(document.getElementById('berberCap').value);
+      simData = generateBerberSim(n, maxWait);
+      buildBerberTable();
+    } else {
+      restoreNormalHeader();
+      simData = generateSim(n, currentMode);
+      buildTable();
+    }
 
     if (currentMode === 'sinav' || currentMode === 'sinav-decimal') {
       renderDistTable(document.getElementById('iatDistTable'), iatDist, 'IAT', dec);
@@ -1193,6 +1388,42 @@
     if (!simData.length) return;
     let total = 0, correct = 0;
 
+    if (currentMode === 'berber') {
+      simData.forEach((row, i) => {
+        let r;
+        r = checkCell(`arrival_${i}`, row.arrival); total += r.t; correct += r.c;
+        r = checkCell(`ninSys_${i}`,  row.nInSys);  total += r.t; correct += r.c;
+        // Check durum select
+        const durumEl = document.getElementById(`durum_${i}`);
+        const expDurum = row.accepted ? 'K' : 'R';
+        total++;
+        if (!durumEl.value) {
+          durumEl.className = 'durum-select empty-err';
+          durumEl.title = `Boş. Doğru: ${row.accepted ? 'Kabul' : 'Reddedildi'}`;
+        } else if (durumEl.value === expDurum) {
+          durumEl.className = 'durum-select correct';
+          durumEl.title = 'Doğru!'; correct++;
+        } else {
+          durumEl.className = 'durum-select incorrect';
+          durumEl.title = `Yanlış! Doğru: ${row.accepted ? 'Kabul' : 'Reddedildi'}`;
+        }
+        if (row.accepted) {
+          r = checkCell(`ss_${i}`,     row.ss);     total += r.t; correct += r.c;
+          r = checkCell(`dep_${i}`,    row.dep);    total += r.t; correct += r.c;
+          r = checkCell(`queue_${i}`,  row.queue);  total += r.t; correct += r.c;
+          r = checkCell(`system_${i}`, row.system); total += r.t; correct += r.c;
+        }
+      });
+      const pct = Math.round((correct / total) * 100);
+      document.getElementById('scoreText').textContent = `${correct} / ${total} doğru  (${pct}%)`;
+      document.getElementById('barFill').style.width = pct + '%';
+      document.getElementById('barFill').style.background =
+        pct >= 80 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
+      document.getElementById('scoreBar').classList.add('visible');
+      showStats();
+      return;
+    }
+
     // Manuel mod: önce dağılım tablolarını kontrol et
     if (currentMode === 'manuel') {
       const tf = isTF();
@@ -1245,6 +1476,37 @@
   function showSolution() {
     if (!simData.length) return;
 
+    if (currentMode === 'berber') {
+      simData.forEach((row, i) => {
+        setInput(`arrival_${i}`, row.arrival);
+        const arrEl = document.getElementById(`arrival_${i}`);
+        if (arrEl) { arrEl.className = 'correct'; arrEl.title = ''; }
+        setInput(`ninSys_${i}`, row.nInSys);
+        const nEl = document.getElementById(`ninSys_${i}`);
+        if (nEl) { nEl.className = 'correct'; nEl.title = ''; }
+        const durumEl = document.getElementById(`durum_${i}`);
+        if (durumEl) {
+          durumEl.value = row.accepted ? 'K' : 'R';
+          durumEl.className = 'durum-select correct';
+          durumEl.title = '';
+          onBerberDurumChange(i);
+        }
+        if (row.accepted) {
+          setInput(`ss_${i}`,     row.ss);
+          setInput(`dep_${i}`,    row.dep);
+          setInput(`queue_${i}`,  row.queue);
+          setInput(`system_${i}`, row.system);
+          ['ss','dep','queue','system'].forEach(col => {
+            const el = document.getElementById(`${col}_${i}`);
+            if (el) { el.className = 'correct'; el.title = ''; }
+          });
+        }
+      });
+      document.getElementById('scoreBar').classList.remove('visible');
+      showStats();
+      return;
+    }
+
     // Manuel mod: dağılım tablolarını doldur
     if (currentMode === 'manuel') {
       const tf = isTF();
@@ -1293,6 +1555,16 @@
      CLEAR
   ════════════════════════════════ */
   function clearAnswers() {
+    if (currentMode === 'berber') {
+      simData.forEach((row, i) => {
+        const durumEl = document.getElementById(`durum_${i}`);
+        if (durumEl) { durumEl.value = ''; durumEl.className = 'durum-select'; durumEl.title = ''; }
+        ['ss','dep','queue','system'].forEach(col => {
+          const inp = document.getElementById(`${col}_${i}`);
+          if (inp) { inp.disabled = false; inp.style.background = ''; inp.style.color = ''; }
+        });
+      });
+    }
     // Manuel mod: dağılım tablosu inputlarını temizle
     if (currentMode === 'manuel') {
       document.querySelectorAll('.dist-table input').forEach(inp => {
@@ -1311,6 +1583,28 @@
   ════════════════════════════════ */
   function showStats() {
     if (!simData.length) return;
+
+    if (currentMode === 'berber') {
+      const accepted = simData.filter(r => r.accepted);
+      const rejected = simData.filter(r => !r.accepted);
+      const na = accepted.length;
+      const avgQ  = na > 0 ? (accepted.reduce((s,r) => s+r.queue,  0) / na).toFixed(2) : '—';
+      const avgTS = na > 0 ? (accepted.reduce((s,r) => s+r.system, 0) / na).toFixed(2) : '—';
+      const lastDep = na > 0 ? accepted[na-1].dep : 0;
+      const busyT   = accepted.reduce((s,r) => s+r.st, 0);
+      const util    = lastDep > 0 ? ((busyT / lastDep) * 100).toFixed(1) : '0.0';
+      const rejPct  = ((rejected.length / simData.length) * 100).toFixed(1);
+      document.getElementById('statsGrid').innerHTML = `
+        <div class="stat-card"><div class="val">${avgQ}</div><div class="lbl">Ort. Kuyruk Süresi (dk)</div></div>
+        <div class="stat-card"><div class="val">${avgTS}</div><div class="lbl">Ort. Sistemde Kalma (dk)</div></div>
+        <div class="stat-card"><div class="val">${util}%</div><div class="lbl">Berber Kullanım Oranı</div></div>
+        <div class="stat-card" style="border-color:#fca5a5"><div class="val" style="color:#dc2626">${rejected.length} kişi</div><div class="lbl">Reddedilen Müşteri</div></div>
+        <div class="stat-card" style="border-color:#fca5a5"><div class="val" style="color:#dc2626">${rejPct}%</div><div class="lbl">Reddedilme Oranı</div></div>
+      `;
+      document.getElementById('statsPanel').classList.add('visible');
+      return;
+    }
+
     const n      = simData.length;
     const avgQ   = (simData.reduce((s,r) => s+r.queue,  0) / n).toFixed(2);
     const avgTS  = (simData.reduce((s,r) => s+r.system, 0) / n).toFixed(2);
