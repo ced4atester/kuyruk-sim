@@ -65,6 +65,16 @@
     .mode-decimal { background: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; }
     .mode-manuel  { background: #ccfbf1; color: #134e4a; border: 1px solid #99f6e4; }
     .mode-berber  { background: #ffedd5; color: #9a3412; border: 1px solid #fed7aa; }
+    .mode-oto { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+
+    .oto-st-wrap {
+      display: none; align-items: center; gap: 10px;
+      background: #fffbeb; border: 1px solid #fde68a;
+      border-radius: 8px; padding: 6px 12px;
+    }
+    .oto-st-wrap.visible { display: flex; }
+    .oto-st-wrap label { font-size: 0.82rem; font-weight: 600; color: #92400e; }
+    .oto-st-wrap select { padding: 4px 8px; font-size: 0.82rem; }
 
     .berber-cap-wrap {
       display: none; align-items: center; gap: 8px;
@@ -443,6 +453,7 @@
     <option value="sinav-decimal">Sınav Modu — Ondalık RN (0.00–1.00)</option>
     <option value="manuel">Manuel Mod — Tabloyu Kendin Doldur</option>
     <option value="berber">Berber Sorusu (Kapasiteli Kuyruk)</option>
+    <option value="otoYikama">Oto Yıkama / Berber (Çift Sunucu)</option>
   </select>
 
   <label>Müşteri sayısı:</label>
@@ -470,6 +481,22 @@
       <option value="2" selected>2 sandalye</option>
       <option value="3">3 sandalye</option>
       <option value="4">4 sandalye</option>
+    </select>
+  </div>
+  <div class="oto-st-wrap" id="otoStWrap">
+    <label>&#10003; Usta ST:</label>
+    <select id="ustaST" onchange="newSim()">
+      <option value="2">2</option>
+      <option value="3" selected>3</option>
+      <option value="4">4</option>
+      <option value="5">5</option>
+    </select>
+    <label>&#10003; Çırak ST:</label>
+    <select id="cirakST" onchange="newSim()">
+      <option value="1">1</option>
+      <option value="2" selected>2</option>
+      <option value="3">3</option>
+      <option value="4">4</option>
     </select>
   </div>
 </div>
@@ -683,6 +710,37 @@
         <div class="example">D₃=16, A₃=8 → TS₃ = 16−8 = 8 dk</div>
       `
     },
+    hizmetVeren: {
+      title: 'Hizmet Veren — Usta mı, Çırak mı?',
+      body: `
+        <p>Her müşteri için servisi kimin yaptığını belirler.</p>
+        <div class="formula">Usta boş? → Usta (Hizmet-1)<br>Usta dolu + Çırak boş? → Çırak (Hizmet-2)<br>İkisi de dolu? → Kuyruğa gir</div>
+        <p><strong>Kuyruktan servis:</strong><br>
+        • Usta boşalınca → sıradaki → Hizmet-1<br>
+        • Çırak boşalınca (Usta hâlâ dolu) → sıradaki → Hizmet-2</p>
+        <div class="example">Önce Usta'yı kontrol et. Usta doluysa Çırak'ı kontrol et.</div>
+      `
+    },
+    ustaBaslangic: {
+      title: 'Usta Başlangıcı / Çırak Başlangıcı',
+      body: `
+        <p>Hizmet veren kişinin müşteriye başladığı andır.</p>
+        <div class="formula">Direkt servis: Başlangıç = Geliş Zamanı<br>Kuyruktan servis: Başlangıç = Önceki müşterinin bitişi</div>
+        <p>Hangi sunucu hizmet veriyorsa o sunucunun başlangıcını doldur.<br>Diğer sunucunun sütununu boş bırak (—).</p>
+        <div class="example">Müşteri 2 Çırak'a gidiyorsa:<br>
+        Usta Başlangıcı = — &nbsp;|&nbsp; Çırak Başlangıcı = geliş zamanı</div>
+      `
+    },
+    bozZaman: {
+      title: 'Boş Zaman — İki Sunucu Birden Boşta',
+      body: `
+        <p>Hem Usta'nın hem de Çırak'ın <strong>aynı anda</strong> boşta olduğu süreyi gösterir.</p>
+        <p>Bir müşteri geldiğinde: bir önceki "son bitiş"ten bu gelişe kadar her iki sunucu da boştaysa o süre Boş Zaman'dır.</p>
+        <div class="formula">İkisi birden boşta kaldı mı? → Evet → Boş Zaman = geliş − her ikisinin son bitişi<br>Hayır → Boş Zaman = 0</div>
+        <div class="example">Usta t=3'te bitti, Çırak t=4'te bitti, sonraki müşteri t=5'te geldi<br>→ Her ikisi t=4'ten itibaren boştu → Boş Zaman = 5−4 = 1</div>
+        <p style="margin-top:8px">Diğer satırlarda genellikle 0 olur.</p>
+      `
+    },
     ninSys: {
       title: 'Sistemde Kişi Sayısı (Berber Dolu mu?)',
       body: `
@@ -886,6 +944,70 @@
                     rnIAT: rnIAT[i], rnST: rnST[i] });
       }
     }
+    return rows;
+  }
+
+  /* ════════════════════════════════
+     GENERATE OTO YIKAMA SIMULATION
+  ════════════════════════════════ */
+  function generateOtoYikama(n, ustaST, cirakST) {
+    const iatVals = [null];
+    for (let i = 1; i < n; i++) iatVals.push(randInt(1, 5));
+
+    const arrivals = [0];
+    for (let i = 1; i < n; i++) arrivals.push(arrivals[i - 1] + iatVals[i]);
+
+    const rows = arrivals.map((arr, i) => ({
+      iat: iatVals[i], arrival: arr,
+      server: null, ss: null, dep: null,
+      queueWait: 0, sysTime: null, bozZaman: 0
+    }));
+
+    // Event-driven simulation
+    const sortFn = (a, b) => a.t !== b.t ? a.t - b.t : (a.type === 'A' ? -1 : 1);
+    const evts = arrivals.map((t, i) => ({ t, type: 'A', ci: i }));
+    evts.sort(sortFn);
+
+    let uFree = 0, cFree = 0;
+    const q = [];
+
+    function serve(ci, srv, t) {
+      const st = srv === 'Usta' ? ustaST : cirakST;
+      rows[ci].server = srv; rows[ci].ss = t;
+      rows[ci].dep = t + st; rows[ci].queueWait = t - rows[ci].arrival;
+      rows[ci].sysTime = rows[ci].dep - rows[ci].arrival;
+      if (srv === 'Usta') { uFree = rows[ci].dep; evts.push({ t: uFree, type: 'UF' }); }
+      else                { cFree = rows[ci].dep; evts.push({ t: cFree, type: 'CF' }); }
+      evts.sort(sortFn);
+    }
+
+    let ei = 0;
+    while (ei < evts.length) {
+      const ev = evts[ei++];
+      const t = ev.t;
+      if (ev.type === 'A') {
+        if (uFree <= t)      serve(ev.ci, 'Usta',  t);
+        else if (cFree <= t) serve(ev.ci, 'Çırak', t);
+        else                 q.push(ev.ci);
+      } else if (ev.type === 'UF') {
+        if (q.length > 0) serve(q.shift(), 'Usta', t);
+      } else if (ev.type === 'CF') {
+        if (q.length > 0 && uFree > t) serve(q.shift(), 'Çırak', t);
+      }
+    }
+
+    // Compute per-row Boş Zaman
+    rows.forEach((row, i) => {
+      if (i === 0) return;
+      const t = row.arrival;
+      const uPrev = rows.slice(0, i).filter(r => r.server === 'Usta'  && r.dep != null && r.dep <= t);
+      const cPrev = rows.slice(0, i).filter(r => r.server === 'Çırak' && r.dep != null && r.dep <= t);
+      if (!uPrev.length || !cPrev.length) return;
+      const bothFrom = Math.max(Math.max(...uPrev.map(r => r.dep)), Math.max(...cPrev.map(r => r.dep)));
+      const bridged  = rows.slice(0, i).some(r => r.ss != null && r.ss > bothFrom && r.ss < t);
+      if (!bridged && t > bothFrom) row.bozZaman = t - bothFrom;
+    });
+
     return rows;
   }
 
@@ -1229,6 +1351,79 @@
     });
   }
 
+  /* ════════════════════════════════
+     BUILD OTO YIKAMA TABLE
+  ════════════════════════════════ */
+  function buildOtoYikamaTable(ustaST, cirakST) {
+    document.getElementById('simHead').innerHTML = `
+      <th><div class="th-inner">Müşteri No.</div></th>
+      <th><div class="th-inner">IAT</div></th>
+      <th><div class="th-inner">Usta HS</div></th>
+      <th><div class="th-inner">Çırak HS</div></th>
+      <th><div class="th-inner">Geliş Zamanı <button class="help-btn" onclick="showModal('arrival')">?</button></div></th>
+      <th><div class="th-inner">Hizmet Veren <button class="help-btn" onclick="showModal('hizmetVeren')">?</button></div></th>
+      <th><div class="th-inner">Usta Başlangıcı <button class="help-btn" onclick="showModal('ustaBaslangic')">?</button></div></th>
+      <th><div class="th-inner">Usta Bitişi <button class="help-btn" onclick="showModal('departure')">?</button></div></th>
+      <th><div class="th-inner">Çırak Başlangıcı <button class="help-btn" onclick="showModal('ustaBaslangic')">?</button></div></th>
+      <th><div class="th-inner">Çırak Bitişi <button class="help-btn" onclick="showModal('departure')">?</button></div></th>
+      <th><div class="th-inner">Kuyrukta Bekleme <button class="help-btn" onclick="showModal('queue')">?</button></div></th>
+      <th><div class="th-inner">Sistemde Kalma <button class="help-btn" onclick="showModal('system')">?</button></div></th>
+      <th><div class="th-inner">Boş Zaman <button class="help-btn" onclick="showModal('bozZaman')">?</button></div></th>
+    `;
+
+    const tbody = document.getElementById('simBody');
+    tbody.innerHTML = '';
+
+    simData.forEach((row, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="pkt-no">${i + 1}</td>
+        <td class="given">${row.iat === null ? '—' : row.iat}</td>
+        <td class="given">${ustaST}</td>
+        <td class="given">${cirakST}</td>
+        <td><input type="number" min="0" id="oArr_${i}" placeholder="—" /></td>
+        <td>
+          <select class="durum-select" id="oSrv_${i}" onchange="onHVChange(${i})">
+            <option value="">—</option>
+            <option value="Usta">Usta</option>
+            <option value="Çırak">Çırak</option>
+          </select>
+        </td>
+        <td><input type="number" min="0" id="oUSS_${i}"  placeholder="—" /></td>
+        <td><input type="number" min="0" id="oUDep_${i}" placeholder="—" /></td>
+        <td><input type="number" min="0" id="oCSS_${i}"  placeholder="—" /></td>
+        <td><input type="number" min="0" id="oCDep_${i}" placeholder="—" /></td>
+        <td><input type="number" min="0" id="oQ_${i}"   placeholder="—" /></td>
+        <td><input type="number" min="0" id="oSys_${i}" placeholder="—" /></td>
+        <td><input type="number" min="0" id="oBoz_${i}" placeholder="—" /></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function onHVChange(i) {
+    const val = document.getElementById(`oSrv_${i}`).value;
+    const disable = (ids) => ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.disabled = true; el.value = ''; el.style.background = '#f1f5f9'; el.style.color = '#94a3b8';
+    });
+    const enable = (ids) => ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.disabled = false; el.style.background = ''; el.style.color = '';
+    });
+    if (val === 'Usta') {
+      enable([`oUSS_${i}`, `oUDep_${i}`]);
+      disable([`oCSS_${i}`, `oCDep_${i}`]);
+    } else if (val === 'Çırak') {
+      disable([`oUSS_${i}`, `oUDep_${i}`]);
+      enable([`oCSS_${i}`, `oCDep_${i}`]);
+    } else {
+      enable([`oUSS_${i}`, `oUDep_${i}`, `oCSS_${i}`, `oCDep_${i}`]);
+    }
+  }
+
   function onBerberDurumChange(i) {
     const val = document.getElementById(`durum_${i}`).value;
     ['ss','dep','queue','system'].forEach(col => {
@@ -1272,6 +1467,7 @@
     const manuelPanel = document.getElementById('manuelPanel');
     const isDecimal   = currentMode === 'sinav-decimal';
     const berberCapWrap = document.getElementById('berberCapWrap');
+    const otoStWrap = document.getElementById('otoStWrap');
 
     sinavPanel.classList.remove('visible');
     manuelPanel.classList.remove('visible');
@@ -1284,6 +1480,7 @@
       badge.className = 'mode-badge mode-pratik';
       toggleWrap.style.display = 'none';
       berberCapWrap.classList.remove('visible');
+      otoStWrap.classList.remove('visible');
 
     } else if (currentMode === 'sinav') {
       badge.textContent = isTF() ? 'SINAV — ONDALIK RN' : 'SINAV — TAM SAYI RN';
@@ -1294,6 +1491,7 @@
         : 'Tam sayı RN (00–99) yöntemi: RN değerini tablodaki aralığa bakarak IAT ve ST değerine dönüştürün.';
       toggleWrap.style.display = 'flex';
       berberCapWrap.classList.remove('visible');
+      otoStWrap.classList.remove('visible');
 
     } else if (currentMode === 'sinav-decimal') {
       badge.textContent = 'SINAV — ONDALIK RN';
@@ -1303,6 +1501,7 @@
         'Ondalık RN (0.00–1.00) yöntemi: RN değerini tablodaki kümülatif aralığa bakarak IAT ve ST değerine dönüştürün.';
       toggleWrap.style.display = 'none';
       berberCapWrap.classList.remove('visible');
+      otoStWrap.classList.remove('visible');
 
     } else if (currentMode === 'manuel') {
       badge.textContent = 'MANUEL MOD';
@@ -1310,17 +1509,31 @@
       manuelPanel.classList.add('visible');
       toggleWrap.style.display = 'flex';
       berberCapWrap.classList.remove('visible');
+      otoStWrap.classList.remove('visible');
 
     } else if (currentMode === 'berber') {
       badge.textContent = 'BERBER SORUSU';
       badge.className = 'mode-badge mode-berber';
       toggleWrap.style.display = 'none';
       berberCapWrap.classList.add('visible');
+      otoStWrap.classList.remove('visible');
+
+    } else if (currentMode === 'otoYikama') {
+      badge.textContent = 'OTO YIKAMA — ÇİFT SUNUCU';
+      badge.className = 'mode-badge mode-oto';
+      toggleWrap.style.display = 'none';
+      berberCapWrap.classList.remove('visible');
+      otoStWrap.classList.add('visible');
     }
 
     const dec = isDecimal || isTF(); // effective decimal flag
 
-    if (currentMode === 'berber') {
+    if (currentMode === 'otoYikama') {
+      const ustaST  = parseInt(document.getElementById('ustaST').value)  || 3;
+      const cirakST = parseInt(document.getElementById('cirakST').value) || 2;
+      simData = generateOtoYikama(n, ustaST, cirakST);
+      buildOtoYikamaTable(ustaST, cirakST);
+    } else if (currentMode === 'berber') {
       const maxWait = parseInt(document.getElementById('berberCap').value);
       simData = generateBerberSim(n, maxWait);
       buildBerberTable();
@@ -1387,6 +1600,40 @@
   function checkAnswers() {
     if (!simData.length) return;
     let total = 0, correct = 0;
+
+    if (currentMode === 'otoYikama') {
+      simData.forEach((row, i) => {
+        let r;
+        r = checkCell(`oArr_${i}`, row.arrival); total += r.t; correct += r.c;
+        // Check server select
+        const srvEl = document.getElementById(`oSrv_${i}`);
+        total++;
+        if (!srvEl.value) {
+          srvEl.className = 'durum-select empty-err'; srvEl.title = `Boş. Doğru: ${row.server}`;
+        } else if (srvEl.value === row.server) {
+          srvEl.className = 'durum-select correct'; srvEl.title = 'Doğru!'; correct++;
+        } else {
+          srvEl.className = 'durum-select incorrect'; srvEl.title = `Yanlış! Doğru: ${row.server}`;
+        }
+        if (row.server === 'Usta') {
+          r = checkCell(`oUSS_${i}`,  row.ss);  total += r.t; correct += r.c;
+          r = checkCell(`oUDep_${i}`, row.dep); total += r.t; correct += r.c;
+        } else {
+          r = checkCell(`oCSS_${i}`,  row.ss);  total += r.t; correct += r.c;
+          r = checkCell(`oCDep_${i}`, row.dep); total += r.t; correct += r.c;
+        }
+        r = checkCell(`oQ_${i}`,   row.queueWait); total += r.t; correct += r.c;
+        r = checkCell(`oSys_${i}`, row.sysTime);   total += r.t; correct += r.c;
+        r = checkCell(`oBoz_${i}`, row.bozZaman);  total += r.t; correct += r.c;
+      });
+      const pct = Math.round((correct / total) * 100);
+      document.getElementById('scoreText').textContent = `${correct} / ${total} doğru  (${pct}%)`;
+      document.getElementById('barFill').style.width = pct + '%';
+      document.getElementById('barFill').style.background = pct >= 80 ? '#16a34a' : pct >= 50 ? '#d97706' : '#dc2626';
+      document.getElementById('scoreBar').classList.add('visible');
+      showStats();
+      return;
+    }
 
     if (currentMode === 'berber') {
       simData.forEach((row, i) => {
@@ -1476,6 +1723,26 @@
   function showSolution() {
     if (!simData.length) return;
 
+    if (currentMode === 'otoYikama') {
+      simData.forEach((row, i) => {
+        setInput(`oArr_${i}`, row.arrival);
+        const srvEl = document.getElementById(`oSrv_${i}`);
+        if (srvEl) { srvEl.value = row.server; srvEl.className = 'durum-select correct'; onHVChange(i); }
+        if (row.server === 'Usta') {
+          setInput(`oUSS_${i}`, row.ss); setInput(`oUDep_${i}`, row.dep);
+          [`oUSS_${i}`,`oUDep_${i}`].forEach(id => { const e=document.getElementById(id); if(e){e.className='correct';e.title='';} });
+        } else {
+          setInput(`oCSS_${i}`, row.ss); setInput(`oCDep_${i}`, row.dep);
+          [`oCSS_${i}`,`oCDep_${i}`].forEach(id => { const e=document.getElementById(id); if(e){e.className='correct';e.title='';} });
+        }
+        setInput(`oQ_${i}`, row.queueWait); setInput(`oSys_${i}`, row.sysTime); setInput(`oBoz_${i}`, row.bozZaman);
+        [`oArr_${i}`,`oQ_${i}`,`oSys_${i}`,`oBoz_${i}`].forEach(id => { const e=document.getElementById(id); if(e){e.className='correct';e.title='';} });
+      });
+      document.getElementById('scoreBar').classList.remove('visible');
+      showStats();
+      return;
+    }
+
     if (currentMode === 'berber') {
       simData.forEach((row, i) => {
         setInput(`arrival_${i}`, row.arrival);
@@ -1555,6 +1822,16 @@
      CLEAR
   ════════════════════════════════ */
   function clearAnswers() {
+    if (currentMode === 'otoYikama') {
+      simData.forEach((row, i) => {
+        const srvEl = document.getElementById(`oSrv_${i}`);
+        if (srvEl) { srvEl.value = ''; srvEl.className = 'durum-select'; srvEl.title = ''; }
+        [`oUSS_${i}`,`oUDep_${i}`,`oCSS_${i}`,`oCDep_${i}`].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) { el.disabled = false; el.style.background = ''; el.style.color = ''; }
+        });
+      });
+    }
     if (currentMode === 'berber') {
       simData.forEach((row, i) => {
         const durumEl = document.getElementById(`durum_${i}`);
@@ -1583,6 +1860,29 @@
   ════════════════════════════════ */
   function showStats() {
     if (!simData.length) return;
+
+    if (currentMode === 'otoYikama') {
+      const ustaCusts  = simData.filter(r => r.server === 'Usta');
+      const cirakCusts = simData.filter(r => r.server === 'Çırak');
+      const n = simData.length;
+      const lastDep = Math.max(...simData.filter(r => r.dep).map(r => r.dep), 1);
+      const ustaST  = parseInt(document.getElementById('ustaST').value)  || 3;
+      const cirakST = parseInt(document.getElementById('cirakST').value) || 2;
+      const uUtil   = ((ustaCusts.length  * ustaST  / lastDep) * 100).toFixed(1);
+      const cUtil   = ((cirakCusts.length * cirakST / lastDep) * 100).toFixed(1);
+      const avgQ    = (simData.reduce((s,r) => s + r.queueWait, 0) / n).toFixed(2);
+      const totalBoz = simData.reduce((s,r) => s + r.bozZaman, 0);
+      document.getElementById('statsGrid').innerHTML = `
+        <div class="stat-card"><div class="val" style="color:#1e40af">${ustaCusts.length}</div><div class="lbl">Hizmet-1 Alan (Usta)</div></div>
+        <div class="stat-card"><div class="val" style="color:#166534">${cirakCusts.length}</div><div class="lbl">Hizmet-2 Alan (Çırak)</div></div>
+        <div class="stat-card"><div class="val">${avgQ}</div><div class="lbl">Ort. Kuyruk Bekleme (dk)</div></div>
+        <div class="stat-card"><div class="val">${uUtil}%</div><div class="lbl">Usta Kullanım Oranı</div></div>
+        <div class="stat-card"><div class="val">${cUtil}%</div><div class="lbl">Çırak Kullanım Oranı</div></div>
+        <div class="stat-card" style="border-color:#fde68a"><div class="val" style="color:#d97706">${totalBoz} dk</div><div class="lbl">Toplam Boş Zaman</div></div>
+      `;
+      document.getElementById('statsPanel').classList.add('visible');
+      return;
+    }
 
     if (currentMode === 'berber') {
       const accepted = simData.filter(r => r.accepted);
