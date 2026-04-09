@@ -1103,9 +1103,10 @@
       waitTime: null, bozZaman: 0
     }));
 
+    // rideEnd önce, sonra arrive, sonra soloExpire (aynı t'de)
     const sortFn = (a, b) => {
       if (a.t !== b.t) return a.t - b.t;
-      const p = { arrive: 0, soloExpire: 1, rideEnd: 2 };
+      const p = { rideEnd: 0, arrive: 1, soloExpire: 2 };
       return (p[a.type] || 0) - (p[b.type] || 0);
     };
 
@@ -1114,11 +1115,12 @@
 
     let rideFreeAt = 0;
     let rideId = 0;
-    let idleStart = 0;
     let waitingSolo = null;
     const queue = [];
 
-    function startRide(children, startTime, bozForFirst) {
+    function startRide(children, startTime) {
+      // Boş Zaman = turun başladığı an - arabanın boşaldığı an
+      const bozForFirst = startTime - rideFreeAt;
       rideFreeAt = startTime + rideDuration;
       rideId++;
       const myRideId = rideId;
@@ -1130,7 +1132,6 @@
         rows[ci].waitTime  = startTime - rows[ci].arrival;
         rows[ci].bozZaman  = idx === 0 ? bozForFirst : 0;
       });
-      idleStart = null;
       events.push({ t: rideFreeAt, type: 'rideEnd', rideId: myRideId });
       events.sort(sortFn);
     }
@@ -1144,13 +1145,10 @@
         const ci = ev.ci;
         if (waitingSolo !== null) {
           const partner = waitingSolo.ci;
-          const boz = waitingSolo.bozForFirst;
           waitingSolo = null;
-          startRide([partner, ci], Math.max(t, rideFreeAt), boz);
+          startRide([partner, ci], Math.max(t, rideFreeAt));
         } else if (rideFreeAt <= t) {
-          const boz = idleStart !== null ? t - idleStart : 0;
-          idleStart = null;
-          waitingSolo = { ci, bozForFirst: boz };
+          waitingSolo = { ci };
           events.push({ t: t + maxWait, type: 'soloExpire', ci });
           events.sort(sortFn);
         } else {
@@ -1159,24 +1157,22 @@
 
       } else if (ev.type === 'soloExpire') {
         if (waitingSolo !== null && waitingSolo.ci === ev.ci) {
-          const boz = waitingSolo.bozForFirst;
           const ci = waitingSolo.ci;
           waitingSolo = null;
-          startRide([ci], t, boz);
+          startRide([ci], t);
         }
 
       } else if (ev.type === 'rideEnd') {
         if (ev.rideId === rideId) {
           if (queue.length >= 2) {
-            startRide(queue.splice(0, 2), t, 0);
+            startRide(queue.splice(0, 2), t);
           } else if (queue.length === 1) {
             const ci = queue.shift();
-            waitingSolo = { ci, bozForFirst: 0 };
+            waitingSolo = { ci };
             events.push({ t: t + maxWait, type: 'soloExpire', ci });
             events.sort(sortFn);
-          } else {
-            idleStart = t;
           }
+          // kuyruk boşsa rideFreeAt mevcut t değerinde kalır
         }
       }
     }
