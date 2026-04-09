@@ -60,8 +60,9 @@
       padding: 4px 12px; border-radius: 99px;
       font-size: 0.78rem; font-weight: 700; letter-spacing: 0.3px;
     }
-    .mode-pratik { background: #fef9c3; color: #92400e; border: 1px solid #fde68a; }
-    .mode-sinav  { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .mode-pratik  { background: #fef9c3; color: #92400e; border: 1px solid #fde68a; }
+    .mode-sinav   { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+    .mode-decimal { background: #f3e8ff; color: #6b21a8; border: 1px solid #d8b4fe; }
 
     /* ── SINAV DATA PANEL ── */
     .sinav-panel {
@@ -309,7 +310,8 @@
   <label>Mod:</label>
   <select id="modeSelect">
     <option value="pratik">Pratik Modu (IAT & ST verilir)</option>
-    <option value="sinav">Sınav Modu (olasılık tablosu + RN)</option>
+    <option value="sinav">Sınav Modu — Tam Sayı RN (00–99)</option>
+    <option value="sinav-decimal">Sınav Modu — Ondalık RN (0.00–1.00)</option>
   </select>
 
   <label>Müşteri sayısı:</label>
@@ -505,9 +507,10 @@
     return dist;
   }
 
-  function rnToValue(rn, dist) {
+  function rnToValue(rn, dist, isDecimal) {
+    const rnInt = isDecimal ? Math.round(rn * 100) : rn;
     for (const row of dist) {
-      if (rn >= row.rnStart && rn <= row.rnEnd) return row.value;
+      if (rnInt >= row.rnStart && rnInt <= row.rnEnd) return row.value;
     }
     return dist[dist.length - 1].value;
   }
@@ -520,14 +523,20 @@
     iatDist = buildDist([1, 2, 3, 4, 5]);
     stDist  = buildDist([4, 6, 8, 10, 12, 14]);
 
-    rnIAT = Array.from({length: n}, () => randInt(0, 99));
-    rnST  = Array.from({length: n}, () => randInt(0, 99));
+    const isDecimal = mode === 'sinav-decimal';
+    if (isDecimal) {
+      rnIAT = Array.from({length: n}, () => randInt(0, 99) / 100);
+      rnST  = Array.from({length: n}, () => randInt(0, 99) / 100);
+    } else {
+      rnIAT = Array.from({length: n}, () => randInt(0, 99));
+      rnST  = Array.from({length: n}, () => randInt(0, 99));
+    }
 
     const rows = [];
     let prevDep = 0;
     for (let i = 0; i < n; i++) {
-      const iat    = rnToValue(rnIAT[i], iatDist);
-      const st     = rnToValue(rnST[i],  stDist);
+      const iat    = rnToValue(rnIAT[i], iatDist, isDecimal);
+      const st     = rnToValue(rnST[i],  stDist,  isDecimal);
       const arrival = i === 0 ? iat : rows[i-1].arrival + iat;
       const ss      = Math.max(arrival, prevDep);
       const dep     = ss + st;
@@ -542,37 +551,49 @@
   /* ════════════════════════════════
      RENDER DISTRIBUTION TABLES
   ════════════════════════════════ */
-  function renderDistTable(tableEl, dist, unit) {
+  function renderDistTable(tableEl, dist, unit, isDecimal) {
+    const fmtRange = (start, end, isLast) => {
+      if (isDecimal) {
+        const s = (start / 100).toFixed(2);
+        const e = isLast ? '1.00' : (end / 100).toFixed(2);
+        return `${s} – ${e}`;
+      }
+      return `${String(start).padStart(2,'0')} – ${String(end).padStart(2,'0')}`;
+    };
+    const cumLabel = isDecimal ? 'Kümülatif (0–1)' : 'Kümülatif (%)';
+    const probLabel = isDecimal ? 'Olasılık' : 'Olasılık (%)';
+
     tableEl.innerHTML = `
       <thead>
         <tr>
           <th>${unit} (dk)</th>
-          <th>Olasılık (%)</th>
-          <th>Kümülatif (%)</th>
+          <th>${probLabel}</th>
+          <th>${cumLabel}</th>
           <th>RN Aralığı</th>
         </tr>
       </thead>
       <tbody>
-        ${dist.map(r => `
+        ${dist.map((r, idx) => `
           <tr>
             <td><strong>${r.value}</strong></td>
-            <td>${r.prob}</td>
-            <td>${r.cumProb}</td>
-            <td class="rn-range">${String(r.rnStart).padStart(2,'0')} – ${String(r.rnEnd).padStart(2,'0')}</td>
+            <td>${isDecimal ? (r.prob/100).toFixed(2) : r.prob}</td>
+            <td>${isDecimal ? (r.cumProb/100).toFixed(2) : r.cumProb}</td>
+            <td class="rn-range">${fmtRange(r.rnStart, r.rnEnd, idx === dist.length-1)}</td>
           </tr>
         `).join('')}
       </tbody>
     `;
   }
 
-  function renderRNTable(n) {
+  function renderRNTable(n, isDecimal) {
     const rnTable = document.getElementById('rnTable');
     let header = '<thead><tr><th>Pkt No.</th>';
     for (let i = 0; i < n; i++) header += `<th>${i+1}</th>`;
     header += '</tr></thead>';
 
-    const iatRow = `<tr><td><strong style="color:#1e40af">RN (IAT)</strong></td>${simData.map(r => `<td class="rn-iat">${String(r.rnIAT).padStart(2,'0')}</td>`).join('')}</tr>`;
-    const stRow  = `<tr><td><strong style="color:#166534">RN (ST)</strong></td>${simData.map(r => `<td class="rn-st">${String(r.rnST).padStart(2,'0')}</td>`).join('')}</tr>`;
+    const fmtRN = (val) => isDecimal ? val.toFixed(2) : String(val).padStart(2,'0');
+    const iatRow = `<tr><td><strong style="color:#1e40af">RN (IAT)</strong></td>${simData.map(r => `<td class="rn-iat">${fmtRN(r.rnIAT)}</td>`).join('')}</tr>`;
+    const stRow  = `<tr><td><strong style="color:#166534">RN (ST)</strong></td>${simData.map(r => `<td class="rn-st">${fmtRN(r.rnST)}</td>`).join('')}</tr>`;
 
     rnTable.innerHTML = header + `<tbody>${iatRow}${stRow}</tbody>`;
   }
@@ -593,7 +614,7 @@
         tr.innerHTML += `<td class="given">${row.st}</td>`;
       } else {
         tr.innerHTML += `<td><input type="number" min="1" id="iat_${i}" placeholder="—" /></td>`;
-        tr.innerHTML += `<td><input type="number" min="1" id="st_${i}"  placeholder="—" /></td>`;
+        tr.innerHTML += `<td><input type="number" min="1" id="st_${i}" placeholder="—" /></td>`;
       }
 
       ['arrival','ss','dep','queue','system'].forEach(col => {
@@ -614,23 +635,33 @@
     const badge = document.getElementById('modeBadge');
     const panel = document.getElementById('sinavPanel');
 
+    const isDecimal = currentMode === 'sinav-decimal';
+
     if (currentMode === 'pratik') {
       badge.textContent = 'PRATİK MODU';
       badge.className = 'mode-badge mode-pratik';
       panel.classList.remove('visible');
+    } else if (isDecimal) {
+      badge.textContent = 'SINAV — ONDALIK RN';
+      badge.className = 'mode-badge mode-decimal';
+      panel.classList.add('visible');
+      document.querySelector('.sinav-panel .subtitle').textContent =
+        'Ondalık RN (0.00–1.00) yöntemi: RN değerini tablodaki kümülatif aralığa bakarak IAT ve ST değerine dönüştürün.';
     } else {
-      badge.textContent = 'SINAV MODU';
+      badge.textContent = 'SINAV — TAM SAYI RN';
       badge.className = 'mode-badge mode-sinav';
       panel.classList.add('visible');
+      document.querySelector('.sinav-panel .subtitle').textContent =
+        'Tam sayı RN (00–99) yöntemi: RN değerini tablodaki aralığa bakarak IAT ve ST değerine dönüştürün.';
     }
 
     simData = generateSim(n, currentMode);
     buildTable();
 
-    if (currentMode === 'sinav') {
-      renderDistTable(document.getElementById('iatDistTable'), iatDist, 'IAT');
-      renderDistTable(document.getElementById('stDistTable'),  stDist,  'ST');
-      renderRNTable(n);
+    if (currentMode === 'sinav' || isDecimal) {
+      renderDistTable(document.getElementById('iatDistTable'), iatDist, 'IAT', isDecimal);
+      renderDistTable(document.getElementById('stDistTable'),  stDist,  'ST',  isDecimal);
+      renderRNTable(n, isDecimal);
     }
 
     document.getElementById('statsPanel').classList.remove('visible');
@@ -651,7 +682,7 @@
       { key: 'queue',   col: 'queue'   },
       { key: 'system',  col: 'system'  },
     ];
-    if (currentMode === 'sinav') {
+    if (currentMode === 'sinav' || currentMode === 'sinav-decimal') {
       colMap.unshift({ key: 'st',  col: 'st'  });
       colMap.unshift({ key: 'iat', col: 'iat' });
     }
@@ -691,7 +722,7 @@
   function showSolution() {
     if (!simData.length) return;
     simData.forEach((row, i) => {
-      if (currentMode === 'sinav') {
+      if (currentMode === 'sinav' || currentMode === 'sinav-decimal') {
         setInput(`iat_${i}`, row.iat);
         setInput(`st_${i}`,  row.st);
       }
