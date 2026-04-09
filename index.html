@@ -1002,8 +1002,10 @@
       const t = row.arrival;
       const uPrev = rows.slice(0, i).filter(r => r.server === 'Usta'  && r.dep != null && r.dep <= t);
       const cPrev = rows.slice(0, i).filter(r => r.server === 'Çırak' && r.dep != null && r.dep <= t);
-      if (!uPrev.length || !cPrev.length) return;
-      const bothFrom = Math.max(Math.max(...uPrev.map(r => r.dep)), Math.max(...cPrev.map(r => r.dep)));
+      // If a server has never served before, it's been free since t=0 → use 0 as default
+      const uLast = uPrev.length > 0 ? Math.max(...uPrev.map(r => r.dep)) : 0;
+      const cLast = cPrev.length > 0 ? Math.max(...cPrev.map(r => r.dep)) : 0;
+      const bothFrom = Math.max(uLast, cLast);
       const bridged  = rows.slice(0, i).some(r => r.ss != null && r.ss >= bothFrom && r.ss < t);
       if (!bridged && t > bothFrom) row.bozZaman = t - bothFrom;
     });
