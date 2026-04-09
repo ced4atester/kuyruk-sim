@@ -1004,7 +1004,7 @@
       const cPrev = rows.slice(0, i).filter(r => r.server === 'Çırak' && r.dep != null && r.dep <= t);
       if (!uPrev.length || !cPrev.length) return;
       const bothFrom = Math.max(Math.max(...uPrev.map(r => r.dep)), Math.max(...cPrev.map(r => r.dep)));
-      const bridged  = rows.slice(0, i).some(r => r.ss != null && r.ss > bothFrom && r.ss < t);
+      const bridged  = rows.slice(0, i).some(r => r.ss != null && r.ss >= bothFrom && r.ss < t);
       if (!bridged && t > bothFrom) row.bozZaman = t - bothFrom;
     });
 
