@@ -335,6 +335,28 @@
       font-size: 0.85rem; color: #166534; margin-top: 10px;
     }
 
+    /* ── TEACHER FORMAT TOGGLE ── */
+    .toggle-wrap {
+      display: flex; align-items: center; gap: 8px;
+      background: #f0fdf4; border: 1px solid #86efac;
+      border-radius: 8px; padding: 6px 12px; cursor: pointer;
+      user-select: none;
+    }
+    .toggle-wrap:hover { background: #dcfce7; }
+    .toggle-wrap input[type="checkbox"] { display: none; }
+    .toggle-track {
+      width: 34px; height: 18px; border-radius: 99px;
+      background: #cbd5e1; position: relative; transition: background 0.2s; flex-shrink: 0;
+    }
+    .toggle-thumb {
+      width: 14px; height: 14px; border-radius: 50%; background: white;
+      position: absolute; top: 2px; left: 2px; transition: left 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .toggle-wrap input:checked ~ .toggle-track { background: #16a34a; }
+    .toggle-wrap input:checked ~ .toggle-track .toggle-thumb { left: 18px; }
+    .toggle-lbl { font-size: 0.82rem; font-weight: 600; color: #166534; }
+
     /* ── CHART SECTION ── */
     .chart-section {
       margin-top: 20px;
@@ -412,6 +434,12 @@
 
   <button class="btn-primary" onclick="newSim()">&#8635; Yeni Simülasyon</button>
   <span id="modeBadge" class="mode-badge mode-pratik">PRATİK MODU</span>
+
+  <label class="toggle-wrap" id="teacherToggleWrap" style="display:none">
+    <input type="checkbox" id="teacherFmt" onchange="newSim()">
+    <span class="toggle-track"><span class="toggle-thumb"></span></span>
+    <span class="toggle-lbl">&#127979; Hoca Formatı (0.00–1.00)</span>
+  </label>
 </div>
 
 <!-- SINAV DATA PANEL (sinav / sinav-decimal) -->
@@ -543,11 +571,16 @@
      STATE
   ════════════════════════════════ */
   let simData   = [];
-  let iatDist   = [];   // [{value, prob, cumProb, rnStart, rnEnd}]
+  let iatDist   = [];
   let stDist    = [];
   let rnIAT     = [];
   let rnST      = [];
   let currentMode = 'pratik';
+
+  function isTF() { // teacher format toggle active?
+    const el = document.getElementById('teacherFmt');
+    return el && el.checked;
+  }
 
   /* ════════════════════════════════
      MODAL CONTENT
@@ -796,15 +829,22 @@
      RENDER MANUEL DISTRIBUTION TABLE
      (value+prob given, rest = blank inputs)
   ════════════════════════════════ */
-  function renderManuelDistTable(tableEl, dist, unit, prefix) {
+  function renderManuelDistTable(tableEl, dist, unit, prefix, decimal) {
+    const probLabel = decimal ? 'Olasılık' : 'Olasılık (%)';
+    const cumLabel  = decimal ? 'Kümülatif (0–1)' : 'Kümülatif (%)';
+    const rnLabel   = decimal ? 'RN Aralığı (0.00–1.00)' : 'RN Aralığı (00–99)';
+    const step      = decimal ? '0.01' : '1';
+    const cumMax    = decimal ? '1'    : '100';
+    const rnMax     = decimal ? '0.99' : '99';
+
     tableEl.innerHTML = `
       <thead>
         <tr>
           <th>${unit} (dk)</th>
-          <th>Olasılık (%)</th>
+          <th>${probLabel}</th>
           <th>
             <div style="display:flex;align-items:center;justify-content:center;gap:4px">
-              Kümülatif (%)
+              ${cumLabel}
               <button class="help-btn-tbl" onclick="showModal('cumulative')">?</button>
             </div>
           </th>
@@ -826,10 +866,10 @@
         ${dist.map((r, idx) => `
           <tr>
             <td class="given"><strong>${r.value}</strong></td>
-            <td class="given">${r.prob}</td>
-            <td><input type="number" min="1" max="100" id="${prefix}Cum_${idx}" placeholder="—" /></td>
-            <td><input type="number" min="0" max="99"  id="${prefix}RnS_${idx}" placeholder="—" /></td>
-            <td><input type="number" min="0" max="99"  id="${prefix}RnE_${idx}" placeholder="—" /></td>
+            <td class="given">${decimal ? (r.prob/100).toFixed(3) : r.prob}</td>
+            <td><input type="number" min="0" max="${cumMax}" step="${step}" id="${prefix}Cum_${idx}" placeholder="—" /></td>
+            <td><input type="number" min="0" max="${rnMax}"  step="${step}" id="${prefix}RnS_${idx}" placeholder="—" /></td>
+            <td><input type="number" min="0" max="${rnMax}"  step="${step}" id="${prefix}RnE_${idx}" placeholder="—" /></td>
           </tr>
         `).join('')}
       </tbody>
@@ -1058,16 +1098,22 @@
     sinavPanel.classList.remove('visible');
     manuelPanel.classList.remove('visible');
 
+    // Show/hide teacher format toggle
+    const toggleWrap = document.getElementById('teacherToggleWrap');
+
     if (currentMode === 'pratik') {
       badge.textContent = 'PRATİK MODU';
       badge.className = 'mode-badge mode-pratik';
+      toggleWrap.style.display = 'none';
 
     } else if (currentMode === 'sinav') {
-      badge.textContent = 'SINAV — TAM SAYI RN';
-      badge.className = 'mode-badge mode-sinav';
+      badge.textContent = isTF() ? 'SINAV — ONDALIK RN' : 'SINAV — TAM SAYI RN';
+      badge.className   = isTF() ? 'mode-badge mode-decimal' : 'mode-badge mode-sinav';
       sinavPanel.classList.add('visible');
-      document.getElementById('sinavSubtitle').textContent =
-        'Tam sayı RN (00–99) yöntemi: RN değerini tablodaki aralığa bakarak IAT ve ST değerine dönüştürün.';
+      document.getElementById('sinavSubtitle').textContent = isTF()
+        ? 'Hoca formatı aktif: Ondalık RN (0.00–1.00) ile IAT ve ST değerlerini bulun.'
+        : 'Tam sayı RN (00–99) yöntemi: RN değerini tablodaki aralığa bakarak IAT ve ST değerine dönüştürün.';
+      toggleWrap.style.display = 'flex';
 
     } else if (currentMode === 'sinav-decimal') {
       badge.textContent = 'SINAV — ONDALIK RN';
@@ -1075,20 +1121,24 @@
       sinavPanel.classList.add('visible');
       document.getElementById('sinavSubtitle').textContent =
         'Ondalık RN (0.00–1.00) yöntemi: RN değerini tablodaki kümülatif aralığa bakarak IAT ve ST değerine dönüştürün.';
+      toggleWrap.style.display = 'none';
 
     } else if (currentMode === 'manuel') {
       badge.textContent = 'MANUEL MOD';
       badge.className = 'mode-badge mode-manuel';
       manuelPanel.classList.add('visible');
+      toggleWrap.style.display = 'flex';
     }
+
+    const dec = isDecimal || isTF(); // effective decimal flag
 
     simData = generateSim(n, currentMode);
     buildTable();
 
     if (currentMode === 'sinav' || currentMode === 'sinav-decimal') {
-      renderDistTable(document.getElementById('iatDistTable'), iatDist, 'IAT', isDecimal);
-      renderDistTable(document.getElementById('stDistTable'),  stDist,  'ST',  isDecimal);
-      renderRNTable(n, isDecimal, 'rnTable');
+      renderDistTable(document.getElementById('iatDistTable'), iatDist, 'IAT', dec);
+      renderDistTable(document.getElementById('stDistTable'),  stDist,  'ST',  dec);
+      renderRNTable(n, dec, 'rnTable');
       drawPDFChart('sPDFiat', iatDist, '#3b82f6', 'IAT — PDF');
       drawCDFChart('sCDFiat', iatDist, '#3b82f6', 'IAT — CDF');
       drawPDFChart('sPDFst',  stDist,  '#16a34a', 'ST — PDF');
@@ -1096,9 +1146,9 @@
     }
 
     if (currentMode === 'manuel') {
-      renderManuelDistTable(document.getElementById('iatDistTableM'), iatDist, 'IAT', 'iat');
-      renderManuelDistTable(document.getElementById('stDistTableM'),  stDist,  'ST',  'st');
-      renderRNTable(n, false, 'rnTableM');
+      renderManuelDistTable(document.getElementById('iatDistTableM'), iatDist, 'IAT', 'iat', isTF());
+      renderManuelDistTable(document.getElementById('stDistTableM'),  stDist,  'ST',  'st',  isTF());
+      renderRNTable(n, isTF(), 'rnTableM');
       drawPDFChart('mPDFiat', iatDist, '#3b82f6', 'IAT — PDF');
       drawCDFChart('mCDFiat', iatDist, '#3b82f6', 'IAT — CDF');
       drawPDFChart('mPDFst',  stDist,  '#16a34a', 'ST — PDF');
@@ -1112,21 +1162,26 @@
   /* ════════════════════════════════
      CHECK CELL HELPER
   ════════════════════════════════ */
-  function checkCell(inputId, expected) {
+  // expected is always the integer value (e.g. 14 for 14%)
+  // decFmt=true: user typed 0.14, compare Math.round(val*100)===expected
+  function checkCell(inputId, expected, decFmt) {
     const input = document.getElementById(inputId);
     if (!input) return { t: 0, c: 0 };
     const val = input.value.trim();
+    const displayCorrect = decFmt ? (expected/100).toFixed(2) : expected;
     if (val === '') {
       input.className = 'empty-err';
-      input.title = `Boş bırakıldı. Doğru: ${expected}`;
+      input.title = `Boş bırakıldı. Doğru: ${displayCorrect}`;
       return { t: 1, c: 0 };
-    } else if (parseInt(val) === expected) {
+    }
+    const userInt = decFmt ? Math.round(parseFloat(val) * 100) : parseInt(val);
+    if (userInt === expected) {
       input.className = 'correct';
       input.title = 'Doğru!';
       return { t: 1, c: 1 };
     } else {
       input.className = 'incorrect';
-      input.title = `Yanlış! Doğru cevap: ${expected}`;
+      input.title = `Yanlış! Doğru cevap: ${displayCorrect}`;
       return { t: 1, c: 0 };
     }
   }
@@ -1140,17 +1195,18 @@
 
     // Manuel mod: önce dağılım tablolarını kontrol et
     if (currentMode === 'manuel') {
+      const tf = isTF();
       iatDist.forEach((row, idx) => {
         let r;
-        r = checkCell(`iatCum_${idx}`, row.cumProb); total += r.t; correct += r.c;
-        r = checkCell(`iatRnS_${idx}`, row.rnStart); total += r.t; correct += r.c;
-        r = checkCell(`iatRnE_${idx}`, row.rnEnd);   total += r.t; correct += r.c;
+        r = checkCell(`iatCum_${idx}`, row.cumProb, tf); total += r.t; correct += r.c;
+        r = checkCell(`iatRnS_${idx}`, row.rnStart, tf); total += r.t; correct += r.c;
+        r = checkCell(`iatRnE_${idx}`, row.rnEnd,   tf); total += r.t; correct += r.c;
       });
       stDist.forEach((row, idx) => {
         let r;
-        r = checkCell(`stCum_${idx}`, row.cumProb); total += r.t; correct += r.c;
-        r = checkCell(`stRnS_${idx}`, row.rnStart); total += r.t; correct += r.c;
-        r = checkCell(`stRnE_${idx}`, row.rnEnd);   total += r.t; correct += r.c;
+        r = checkCell(`stCum_${idx}`, row.cumProb, tf); total += r.t; correct += r.c;
+        r = checkCell(`stRnS_${idx}`, row.rnStart, tf); total += r.t; correct += r.c;
+        r = checkCell(`stRnE_${idx}`, row.rnEnd,   tf); total += r.t; correct += r.c;
       });
     }
 
@@ -1191,15 +1247,17 @@
 
     // Manuel mod: dağılım tablolarını doldur
     if (currentMode === 'manuel') {
+      const tf = isTF();
+      const fmt = (v, isRN) => tf ? (v/100).toFixed(2) : v;
       iatDist.forEach((row, idx) => {
-        setInput(`iatCum_${idx}`, row.cumProb);
-        setInput(`iatRnS_${idx}`, row.rnStart);
-        setInput(`iatRnE_${idx}`, row.rnEnd);
+        setInput(`iatCum_${idx}`, fmt(row.cumProb));
+        setInput(`iatRnS_${idx}`, fmt(row.rnStart));
+        setInput(`iatRnE_${idx}`, fmt(row.rnEnd));
       });
       stDist.forEach((row, idx) => {
-        setInput(`stCum_${idx}`, row.cumProb);
-        setInput(`stRnS_${idx}`, row.rnStart);
-        setInput(`stRnE_${idx}`, row.rnEnd);
+        setInput(`stCum_${idx}`, fmt(row.cumProb));
+        setInput(`stRnS_${idx}`, fmt(row.rnStart));
+        setInput(`stRnE_${idx}`, fmt(row.rnEnd));
       });
       // Mark dist inputs as correct
       document.querySelectorAll('.dist-table input').forEach(inp => {
